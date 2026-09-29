@@ -15,6 +15,8 @@ if($_SERVER["SERVER_NAME"] == "localhost"){
     define('DBPASS', '59OPwgRtesruz');
     define('DBNAME', 'if0_42129862_hivesense_db');
 }
+// Food store is measured in GRAMS. Set this to the weight of a full feeder.
+define('FOOD_MAX_G', 1000);
 
 // Timezone — keep PHP's date()/time() in sync with the Philippines (UTC+8),
 // and with MySQL's NOW()/CURDATE() (set per-connection in Base_Model).

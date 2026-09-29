@@ -236,16 +236,16 @@
                     <div class="card-icon food-icon"><i class="fas fa-jar"></i></div>
                     <div class="card-content">
                         <span class="card-label">Current Food Level</span>
-                        <div><span class="card-value" id="currentFood">--</span><span class="card-unit">%</span></div>
+                        <div><span class="card-value" id="currentFood">--</span><span class="card-unit">g</span></div>
                         <span class="card-footer" id="foodTime">--</span>
                     </div>
                     <div class="food-status-badge" id="foodStatusBadge">—</div>
                 </div>
                 <div class="food-scale-card">
                     <div class="food-scale-title"><i class="fas fa-info-circle"></i> Food Level Guide</div>
-                    <div class="food-scale-row"><span class="food-dot full"></span><span class="food-scale-range">100%</span><span class="food-scale-label">Full — Well stocked</span></div>
-                    <div class="food-scale-row"><span class="food-dot moderate"></span><span class="food-scale-range">50%</span><span class="food-scale-label">Moderate — Plan feeding soon</span></div>
-                    <div class="food-scale-row"><span class="food-dot empty"></span><span class="food-scale-range">0%</span><span class="food-scale-label">Empty — Feed now</span></div>
+                    <div class="food-scale-row"><span class="food-dot full"></span><span class="food-scale-range"><?= FOOD_MAX_G ?> g</span><span class="food-scale-label">Full — Well stocked</span></div>
+                    <div class="food-scale-row"><span class="food-dot moderate"></span><span class="food-scale-range"><?= FOOD_MAX_G / 2 ?> g</span><span class="food-scale-label">Moderate — Plan feeding soon</span></div>
+                    <div class="food-scale-row"><span class="food-dot empty"></span><span class="food-scale-range">0 g</span><span class="food-scale-label">Empty — Feed now</span></div>
                 </div>
             </div>
         </div>
@@ -829,6 +829,7 @@
 
 <script>
     const BASE_URL = '<?= ROOT ?>';
+    const FOOD_MAX_G = <?= (int)FOOD_MAX_G ?>;
     const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
     <?php if (!empty($roleNotice)): ?>
     window.addEventListener('DOMContentLoaded', function() {

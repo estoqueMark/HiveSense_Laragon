@@ -143,14 +143,16 @@ async function loadCurrentData() {
             // Food level
             const food = d.food_level ?? null;
             if (food !== null && food !== undefined) {
-                $('#currentFood').text(parseFloat(food).toFixed(0));
+                const grams = parseFloat(food);
+                const pct   = (grams / FOOD_MAX_G) * 100;   // only used to pick the badge band
+                $('#currentFood').text(grams.toFixed(0));
                 const fb = $('#foodStatusBadge');
                 let fcls, flabel;
-                if      (food >= 87.5) { fcls = 'full';     flabel = 'Full'; }
-                else if (food >= 62.5) { fcls = 'good';     flabel = 'Good'; }
-                else if (food >= 37.5) { fcls = 'moderate'; flabel = 'Moderate'; }
-                else if (food >= 12.5) { fcls = 'low';      flabel = 'Low'; }
-                else                   { fcls = 'empty';    flabel = 'Empty'; }
+                if      (pct >= 87.5) { fcls = 'full';     flabel = 'Full'; }
+                else if (pct >= 62.5) { fcls = 'good';     flabel = 'Good'; }
+                else if (pct >= 37.5) { fcls = 'moderate'; flabel = 'Moderate'; }
+                else if (pct >= 12.5) { fcls = 'low';      flabel = 'Low'; }
+                else                  { fcls = 'empty';    flabel = 'Empty'; }
                 fb.text(flabel).removeClass('full good moderate low empty').addClass(fcls);
             } else {
                 $('#currentFood').text('--');

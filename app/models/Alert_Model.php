@@ -48,12 +48,14 @@ class Alert_Model extends Base_Model {
         }
 
         if ($foodLevel !== null) {
-            if ($foodLevel <= self::FOOD_CRITICAL) {
+            $foodLow = FOOD_MAX_G * 0.25;   // low alert at 25% of a full feeder
+            $g = round($foodLevel);
+            if ($foodLevel <= 0) {
                 $triggered[] = ['type' => 'food', 'severity' => 'critical', 'value' => $foodLevel,
-                    'message' => "Food store is empty ({$foodLevel}%) — feed the colony now."];
-            } elseif ($foodLevel <= self::FOOD_LOW) {
+                    'message' => "Food store is empty ({$g} g) — feed the colony now."];
+            } elseif ($foodLevel <= $foodLow) {
                 $triggered[] = ['type' => 'food', 'severity' => 'warning', 'value' => $foodLevel,
-                    'message' => "Food store is low ({$foodLevel}%) — plan feeding soon."];
+                    'message' => "Food store is low ({$g} g) — plan feeding soon."];
             }
         }
 

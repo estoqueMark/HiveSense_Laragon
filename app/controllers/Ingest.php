@@ -102,9 +102,9 @@ class Ingest extends Base_Controller {
                 exit();
             }
             $foodFloat = (float) $foodLevel;
-            if ($foodFloat < 0 || $foodFloat > 100) {
+            if ($foodFloat < 0 || $foodFloat > FOOD_MAX_G) {
                 http_response_code(400);
-                echo json_encode(['success' => false, 'message' => "Food level out of range (0-100): {$foodFloat}"]);
+                echo json_encode(['success' => false, 'message' => "Food level out of range (0-" . FOOD_MAX_G . " g): {$foodFloat}"]);
                 exit();
             }
         }
