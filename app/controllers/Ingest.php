@@ -42,15 +42,21 @@ class Ingest extends Base_Controller {
             exit();
         }
 
-        if ($temperature === null || $humidity === null) {
+        if ($temperature === null && $humidity === null && $co2 === null && $foodLevel === null) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'temperature and humidity are required.']);
+            echo json_encode(['success' => false, 'message' => 'Send at least one of: temperature, humidity, co2, food_level.']);
             exit();
         }
 
-        if (!is_numeric($temperature) || !is_numeric($humidity)) {
+        if ($temperature !== null && !is_numeric($temperature)) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'message' => 'temperature and humidity must be numeric.']);
+            echo json_encode(['success' => false, 'message' => 'temperature must be numeric.']);
+            exit();
+        }
+
+        if ($humidity !== null && !is_numeric($humidity)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'humidity must be numeric.']);
             exit();
         }
 
@@ -61,19 +67,24 @@ class Ingest extends Base_Controller {
         }
         $sensorId = $sensorIdRaw !== null ? (int) $sensorIdRaw : null;
 
-        $temperature = (float) $temperature;
-        $humidity    = (float) $humidity;
+        // A suspicious value is dropped (not stored) so it can't trigger fake alerts,
+        // but the other sensors' values in the same reading are still saved.
+        $warnings = [];
 
-        if ($temperature < -40 || $temperature > 80) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'message' => "Temperature out of range: {$temperature}"]);
-            exit();
+        if ($temperature !== null) {
+            $temperature = (float) $temperature;
+            if ($temperature < -10 || $temperature > 60) {
+                $warnings[] = "temperature ignored (suspected sensor fault: {$temperature})";
+                $temperature = null;
+            }
         }
 
-        if ($humidity < 0 || $humidity > 100) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'message' => "Humidity out of range: {$humidity}"]);
-            exit();
+        if ($humidity !== null) {
+            $humidity = (float) $humidity;
+            if ($humidity <= 0 || $humidity > 100) {
+                $warnings[] = "humidity ignored (suspected sensor fault: {$humidity})";
+                $humidity = null;
+            }
         }
 
         // CO2 is optional — validate only when provided
@@ -109,6 +120,11 @@ class Ingest extends Base_Controller {
             }
         }
 
+        if ($temperature === null && $humidity === null && $co2Float === null && $foodFloat === null) {
+            http_response_code(422);
+            echo json_encode(['success' => false, 'message' => 'No valid sensor values in this reading. ' . implode('; ', $warnings)]);
+            exit();
+        }
         // Load Base_Model
         require_once __DIR__ . "/../models/Base_Model.php";
         $db         = new Base_Model();
@@ -174,6 +190,7 @@ class Ingest extends Base_Controller {
             'co2'         => $co2Float,
             'food_level'  => $foodFloat,
             'timestamp'   => date('Y-m-d H:i:s'),
+            'warnings'    => $warnings,
         ]);
     }
 }

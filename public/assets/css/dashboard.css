@@ -500,6 +500,14 @@
 .food-scale-range { color: var(--text-muted); font-weight: 600; white-space: nowrap; min-width: 50px; }
 .food-scale-label { color: var(--text-dim); }
 
+.hive-offline {
+    display: inline-block; margin-top: 4px; padding: 1px 8px;
+    border-radius: 20px; font-size: 0.6rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    background: rgba(224,82,82,0.25); color: #ffb4b4;
+    border: 1px solid rgba(224,82,82,0.5);
+}
+
 @media (max-width: 900px) {
     .food-grid { grid-template-columns: 1fr; }
 }

@@ -18,10 +18,11 @@ class Alert_Model extends Base_Model {
     }
 
     /** Call after every new reading. Returns newly created/escalated alerts. */
-    public function evaluateReading(?int $sensorId, float $temperature, float $humidity, ?float $co2, ?float $foodLevel, ?int $readingId): array {
-        $triggered = [];
+    public function evaluateReading(?int $sensorId, ?float $temperature, ?float $humidity, ?float $co2, ?float $foodLevel, ?int $readingId): array {
 
-        if ($temperature < self::TEMP_COLD) {
+        if ($temperature === null) {
+            // temperature not reported in this reading
+        } elseif ($temperature < self::TEMP_COLD) {
             $triggered[] = ['type' => 'temperature', 'severity' => 'warning', 'value' => $temperature,
                 'message' => "Temperature dropped to {$temperature}°C — colony at risk of cold stress."];
         } elseif ($temperature > self::TEMP_HOT) {
@@ -29,7 +30,9 @@ class Alert_Model extends Base_Model {
                 'message' => "Temperature spiked to {$temperature}°C — check ventilation."];
         }
 
-        if ($humidity < self::HUM_DRY) {
+        if ($humidity === null) {
+            // humidity not reported in this reading
+        } elseif ($humidity < self::HUM_DRY) {
             $triggered[] = ['type' => 'humidity', 'severity' => 'warning', 'value' => $humidity,
                 'message' => "Humidity dropped to {$humidity}% — risk of comb damage."];
         } elseif ($humidity > self::HUM_VERY_HUMID) {
@@ -61,8 +64,15 @@ class Alert_Model extends Base_Model {
 
         $breachedTypes = array_column($triggered, 'type');
 
-        foreach (['temperature', 'humidity', 'co2', 'food'] as $type) {
-            if (!in_array($type, $breachedTypes)) {
+        // Only auto-resolve a metric if this reading actually reported it
+        $reported = [
+            'temperature' => $temperature !== null,
+            'humidity'    => $humidity    !== null,
+            'co2'         => $co2         !== null,
+            'food'        => $foodLevel   !== null,
+        ];
+        foreach ($reported as $type => $wasReported) {
+            if ($wasReported && !in_array($type, $breachedTypes)) {
                 $this->resolveActiveAlert($sensorId, $type);
             }
         }

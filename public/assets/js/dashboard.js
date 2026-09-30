@@ -379,7 +379,8 @@ async function loadReadingsTable() {
         [...rows].reverse().forEach((r, i) => {
             const temp = parseFloat(r.temperature);
             let pill, pillClass;
-            if      (temp < 32) { pill = 'Cold';    pillClass = 'pill-cold'; }
+            if      (isNaN(temp)) { pill = '—';     pillClass = ''; }
+            else if (temp < 32) { pill = 'Cold';    pillClass = 'pill-cold'; }
             else if (temp < 36) { pill = 'Optimal'; pillClass = 'pill-optimal'; }
             else if (temp < 38) { pill = 'Warm';    pillClass = 'pill-warm'; }
             else                { pill = 'Hot';     pillClass = 'pill-hot'; }
@@ -388,8 +389,8 @@ async function loadReadingsTable() {
                 <td style="color:var(--text-dim);font-size:0.75rem;">${rows.length - i}</td>
                 <td>${r.measurement_date}</td>
                 <td style="font-weight:500;">${r.measurement_time}</td>
-                <td><strong>${r.temperature}°C</strong></td>
-                <td>${r.humidity}%</td>
+                <td><strong>${r.temperature != null ? r.temperature + '°C' : '—'}</strong></td>
+                <td>${r.humidity != null ? r.humidity + '%' : '—'}</td>
                 <td style="color:#b45309;font-weight:500;">${co2cell}</td>
                 <td><span class="status-pill ${pillClass}">${pill}</span></td>
             </tr>`;
@@ -449,6 +450,7 @@ function refreshData() {
     }
 
     loadAlerts();
+    reloadSidebarHives();
     const refreshIcon = $('.btn-refresh i');
     refreshIcon.css('transform', 'rotate(360deg)');
     setTimeout(() => refreshIcon.css('transform', ''), 500);
@@ -986,6 +988,7 @@ async function reloadSidebarHives() {
                             <div class="hive-info">
                                 <h4>${escapeHtml(h.hive_name)}</h4>
                                 <p>${escapeHtml(h.location || '')}</p>
+                                ${parseInt(h.is_offline) ? '<span class="hive-offline">Offline</span>' : ''}
                             </div>
                         </div>`;
             });

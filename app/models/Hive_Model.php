@@ -17,11 +17,17 @@ class Hive_Model extends Base_Model {
     }
 
     public function getActiveHives(): array {
+        $mins = (int)SENSOR_OFFLINE_MIN;
         $result = $this->connection->query(
-            'SELECT sensor_id, hive_name, location
-             FROM hs_sensors
-             WHERE is_active = 1
-             ORDER BY hive_name ASC'
+            "SELECT s.sensor_id, s.hive_name, s.location,
+                    MAX(r.timestamp) AS last_reading_at,
+                    (MAX(r.timestamp) IS NULL
+                     OR MAX(r.timestamp) < DATE_SUB(NOW(), INTERVAL {$mins} MINUTE)) AS is_offline
+             FROM hs_sensors s
+             LEFT JOIN hs_readings r ON r.sensor_id = s.sensor_id
+             WHERE s.is_active = 1
+             GROUP BY s.sensor_id, s.hive_name, s.location
+             ORDER BY s.hive_name ASC"
         );
         return $result->fetch_all(MYSQLI_ASSOC);
     }

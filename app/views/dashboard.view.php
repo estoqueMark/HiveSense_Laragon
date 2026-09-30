@@ -28,6 +28,7 @@
                         <div class="hive-info">
                             <h4><?php echo htmlspecialchars($hive['hive_name']); ?></h4>
                             <p><?php echo htmlspecialchars($hive['location'] ?? 'No location set'); ?></p>
+                            <?php if (!empty($hive['is_offline'])): ?><span class="hive-offline">Offline</span><?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
