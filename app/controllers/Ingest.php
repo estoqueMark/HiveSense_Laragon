@@ -36,6 +36,24 @@ class Ingest extends Base_Controller {
             exit();
         }
 
+        // Load Base_Model
+        require_once __DIR__ . "/../models/Base_Model.php";
+        $db         = new Base_Model();
+        $connection = $db->connection;
+
+        // Verify API key
+        $stmt = $connection->prepare('SELECT key_id FROM hs_api_keys WHERE api_key = ? AND is_active = 1 LIMIT 1');
+        $stmt->bind_param("s", $apiKey);
+        $stmt->execute();
+        $key = $stmt->get_result()->fetch_assoc();
+
+        if (!$key) {
+            http_response_code(401);
+            echo json_encode(['success' => false, 'message' => 'Invalid or inactive API key.']);
+            exit();
+        }
+
+
         if (!isset($body['sensor_id']) || !is_numeric($body['sensor_id']) || (int)$body['sensor_id'] <= 0) {
             http_response_code(400);
             echo json_encode(['success' => false, 'message' => 'A valid sensor_id is required.']);
@@ -87,7 +105,6 @@ class Ingest extends Base_Controller {
             }
         }
 
-        // CO2 is optional — validate only when provided
         $co2Float = null;
         if ($co2 !== null) {
             if (!is_numeric($co2)) {
@@ -96,15 +113,12 @@ class Ingest extends Base_Controller {
                 exit();
             }
             $co2Float = (float) $co2;
-            // Typical indoor CO2 range: 300–10000 ppm
             if ($co2Float < 300 || $co2Float > 10000) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => "CO2 out of range (300–10000 ppm): {$co2Float}"]);
-                exit();
+                $warnings[] = "co2 ignored (out of range 300-10000 ppm: {$co2Float})";
+                $co2Float = null;
             }
         }
 
-        // Food level is optional — validate only when provided
         $foodFloat = null;
         if ($foodLevel !== null) {
             if (!is_numeric($foodLevel)) {
@@ -114,9 +128,8 @@ class Ingest extends Base_Controller {
             }
             $foodFloat = (float) $foodLevel;
             if ($foodFloat < 0 || $foodFloat > FOOD_MAX_G) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => "Food level out of range (0-" . FOOD_MAX_G . " g): {$foodFloat}"]);
-                exit();
+                $warnings[] = "food_level ignored (out of range 0-" . FOOD_MAX_G . ": {$foodFloat})";
+                $foodFloat = null;
             }
         }
 
@@ -125,27 +138,11 @@ class Ingest extends Base_Controller {
             echo json_encode(['success' => false, 'message' => 'No valid sensor values in this reading. ' . implode('; ', $warnings)]);
             exit();
         }
-        // Load Base_Model
-        require_once __DIR__ . "/../models/Base_Model.php";
-        $db         = new Base_Model();
-        $connection = $db->connection;
-
-        // Verify API key
-        $stmt = $connection->prepare('SELECT key_id FROM hs_api_keys WHERE api_key = ? AND is_active = 1 LIMIT 1');
-        $stmt->bind_param("s", $apiKey);
-        $stmt->execute();
-        $key = $stmt->get_result()->fetch_assoc();
-
-        if (!$key) {
-            http_response_code(401);
-            echo json_encode(['success' => false, 'message' => 'Invalid or inactive API key.']);
-            exit();
-        }
 
         // Verify sensor_id exists (if provided) — avoids orphaned readings for a
         // typo'd or deleted hive
         if ($sensorId !== null) {
-            $stmt = $connection->prepare('SELECT sensor_id FROM hs_sensors WHERE sensor_id = ? LIMIT 1');
+            $stmt = $connection->prepare('SELECT sensor_id FROM hs_sensors WHERE sensor_id = ? AND is_active = 1 LIMIT 1');
             $stmt->bind_param("i", $sensorId);
             $stmt->execute();
             if (!$stmt->get_result()->fetch_assoc()) {

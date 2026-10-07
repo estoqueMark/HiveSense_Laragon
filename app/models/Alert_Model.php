@@ -10,8 +10,6 @@ class Alert_Model extends Base_Model {
     const HUM_VERY_HUMID = 85;
     const CO2_HIGH        = 1500;
     const CO2_DANGER      = 3000;
-    const FOOD_LOW        = 25;
-    const FOOD_CRITICAL   = 0;
 
     public function __construct() {
         parent::__construct();
@@ -19,6 +17,7 @@ class Alert_Model extends Base_Model {
 
     /** Call after every new reading. Returns newly created/escalated alerts. */
     public function evaluateReading(?int $sensorId, ?float $temperature, ?float $humidity, ?float $co2, ?float $foodLevel, ?int $readingId): array {
+        $triggered = [];  
 
         if ($temperature === null) {
             // temperature not reported in this reading

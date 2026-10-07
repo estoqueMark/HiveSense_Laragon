@@ -365,12 +365,12 @@ function switchTab(tab) {
 async function loadReadingsTable() {
     const hours = parseInt($('#readingsHourFilter').val()) || 24;
     const tbody = $('#readingsTableBody');
-    tbody.html('<tr><td colspan="7" class="loading">Loading...</td></tr>');
+    tbody.html('<tr><td colspan="8" class="loading">Loading...</td></tr>');
     try {
         const response = await fetch(apiUrl('/api/readings', { hours }));
         const result   = await response.json();
         if (!result.success || !result.data || !result.data.length) {
-            tbody.html('<tr><td colspan="7" class="loading">No readings found for this period.</td></tr>');
+            tbody.html('<tr><td colspan="8" class="loading">No readings found for this period.</td></tr>');
             $('#readingsCount').text('0 readings'); return;
         }
         const rows = result.data;
@@ -392,12 +392,13 @@ async function loadReadingsTable() {
                 <td><strong>${r.temperature != null ? r.temperature + '°C' : '—'}</strong></td>
                 <td>${r.humidity != null ? r.humidity + '%' : '—'}</td>
                 <td style="color:#b45309;font-weight:500;">${co2cell}</td>
+                <td style="color:#7c3aed;font-weight:500;">${fmtFood(r.food_level)}</td>
                 <td><span class="status-pill ${pillClass}">${pill}</span></td>
             </tr>`;
         });
         tbody.html(html);
     } catch(e) {
-        tbody.html(`<tr><td colspan="7" class="loading">Error: ${e.message}</td></tr>`);
+        tbody.html(`<tr><td colspan="8" class="loading">Error: ${e.message}</td></tr>`);
     }
 }
 
@@ -410,10 +411,10 @@ async function loadDailyStats() {
             renderTable(result.data);
             $('#summaryCount').text(`${result.data.length} day${result.data.length !== 1 ? 's' : ''}`);
         } else {
-            $('#tableBody').html('<tr><td colspan="8" class="loading">No data available.</td></tr>');
+            $('#tableBody').html('<tr><td colspan="10" class="loading">No data available.</td></tr>');
         }
     } catch (e) {
-        $('#tableBody').html('<tr><td colspan="8" class="loading">Error loading data</td></tr>');
+        $('#tableBody').html('<tr><td colspan="10" class="loading">Error loading data</td></tr>');
     }
 }
 
@@ -431,6 +432,8 @@ function renderTable(data) {
             <td>${row.min_temperature ?? '—'}°C</td>
             <td style="color:#b45309;font-weight:500;">${avgCo2}</td>
             <td style="color:#b45309;font-weight:500;">${maxCo2}</td>
+            <td style="color:#7c3aed;font-weight:500;">${fmtFood(row.avg_food_level)}</td>
+            <td style="color:#7c3aed;font-weight:500;">${fmtFood(row.min_food_level)}</td>
             <td>${row.reading_count ?? 0}</td>
         </tr>`;
     });
@@ -469,8 +472,8 @@ function selectHive(sensorId, element) {
     $('#co2StatusBadge').text('—').removeClass('good moderate high danger');
     $('#foodStatusBadge').text('—').removeClass('full good moderate low empty');
     $('#tempTime, #humidityTime, #co2Time, #foodTime').text('--');
-    $('#readingsTableBody').html('<tr><td colspan="7" class="loading">Loading data...</td></tr>');
-    $('#tableBody').html('<tr><td colspan="8" class="loading">Loading data...</td></tr>');
+    $('#readingsTableBody').html('<tr><td colspan="8" class="loading">Loading data...</td></tr>');
+    $('#tableBody').html('<tr><td colspan="10" class="loading">Loading data...</td></tr>');
     loadCurrentData();
     if (chartMode === 'live') loadHistoryData(currentHours);
     else loadSummaryChart(currentDays);
@@ -1024,6 +1027,10 @@ function showToast(msg, type = 'success') {
     if (toastTimer) clearTimeout(toastTimer);
     const duration = type === 'info' ? 6000 : 3000;
     toastTimer = setTimeout(() => toast.removeClass('show'), duration);
+}
+
+function fmtFood(v) {
+    return v != null ? `${Math.round(parseFloat(v))} g` : '—';
 }
 
 function formatDate(dateStr) {

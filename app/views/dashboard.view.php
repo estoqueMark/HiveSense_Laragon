@@ -319,11 +319,12 @@
                                 <th>Temperature</th>
                                 <th>Humidity</th>
                                 <th>CO₂</th>
+                                <th>Food</th>
                                 <th>Temp Status</th>
                             </tr>
                         </thead>
                         <tbody id="readingsTableBody">
-                            <tr><td colspan="7" class="loading">Loading readings...</td></tr>
+                            <tr><td colspan="8" class="loading">Loading readings...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -345,11 +346,13 @@
                                 <th>Min Temp</th>
                                 <th>Avg CO₂</th>
                                 <th>Max CO₂</th>
+                                <th>Avg Food</th>
+                                <th>Min Food</th>
                                 <th>Readings</th>
                             </tr>
                         </thead>
                         <tbody id="tableBody">
-                            <tr><td colspan="8" class="loading">Loading data...</td></tr>
+                            <tr><td colspan="10" class="loading">Loading data...</td></tr>
                         </tbody>
                     </table>
                 </div>
