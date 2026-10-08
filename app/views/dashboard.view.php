@@ -227,6 +227,14 @@
         </div>
 
         <!-- Food Store Section -->
+        <style>
+            .food-dot.low { background:#f97316; }
+            .food-placed-btn { margin-top:12px; width:100%; padding:10px 14px; border:0; border-radius:10px;
+                background:#d97706; color:#fff; font-weight:600; font-size:.95rem; cursor:pointer; }
+            .food-placed-btn:hover { background:#b45309; }
+            .food-placed-btn:disabled { opacity:.6; cursor:wait; }
+            .food-pending-note { display:none; margin-top:8px; font-size:.85rem; color:#92400e; }
+        </style>
         <div class="food-section">
             <div class="food-section-label">
                 <i class="fas fa-utensils"></i>
@@ -236,17 +244,25 @@
                 <div class="reading-card food-current">
                     <div class="card-icon food-icon"><i class="fas fa-jar"></i></div>
                     <div class="card-content">
-                        <span class="card-label">Current Food Level</span>
+                        <span class="card-label">Current Food Weight</span>
                         <div><span class="card-value" id="currentFood">--</span><span class="card-unit">g</span></div>
+                        <span class="card-footer" id="foodRefText">Press "Food placed" after putting food on the scale</span>
                         <span class="card-footer" id="foodTime">--</span>
                     </div>
                     <div class="food-status-badge" id="foodStatusBadge">—</div>
                 </div>
                 <div class="food-scale-card">
                     <div class="food-scale-title"><i class="fas fa-info-circle"></i> Food Level Guide</div>
-                    <div class="food-scale-row"><span class="food-dot full"></span><span class="food-scale-range"><?= FOOD_MAX_G ?> g</span><span class="food-scale-label">Full — Well stocked</span></div>
-                    <div class="food-scale-row"><span class="food-dot moderate"></span><span class="food-scale-range"><?= FOOD_MAX_G / 2 ?> g</span><span class="food-scale-label">Moderate — Plan feeding soon</span></div>
-                    <div class="food-scale-row"><span class="food-dot empty"></span><span class="food-scale-range">0 g</span><span class="food-scale-label">Empty — Feed now</span></div>
+                    <div class="food-scale-row"><span class="food-dot full"></span><span class="food-scale-range" id="foodRangeFull">--</span><span class="food-scale-label">Full — Well stocked</span></div>
+                    <div class="food-scale-row"><span class="food-dot moderate"></span><span class="food-scale-range" id="foodRangeHalf">--</span><span class="food-scale-label">Half full — Plan feeding</span></div>
+                    <div class="food-scale-row"><span class="food-dot low"></span><span class="food-scale-range" id="foodRangeLow">--</span><span class="food-scale-label">Low — Feed soon</span></div>
+                    <div class="food-scale-row"><span class="food-dot empty"></span><span class="food-scale-range" id="foodRangeEmpty">--</span><span class="food-scale-label">Empty — Feed now</span></div>
+                    <?php if (in_array($_SESSION['role'] ?? '', ['admin','apiarist'])): ?>
+                    <button type="button" class="food-placed-btn" id="foodPlacedBtn" onclick="markFoodPlaced()">
+                        <i class="fas fa-utensils"></i> Food placed
+                    </button>
+                    <div class="food-pending-note" id="foodPendingNote">Waiting for the next scale reading to record the full amount…</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -310,7 +326,7 @@
                     </select>
                 </div>
                 <div class="table-container" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-                    <table style="min-width:640px;">
+                    <table style="min-width:720px;">
                         <thead>
                             <tr>
                                 <th>#</th>
@@ -334,25 +350,24 @@
             <div id="panelSummary" style="display:none;">
                 <div class="table-toolbar">
                     <span class="table-count" id="summaryCount">—</span>
+                    <button class="btn-secondary" style="padding:7px 14px;" onclick="exportDataLog('summary')">
+                        <i class="fas fa-file-csv"></i> Export CSV
+                    </button>
                 </div>
                 <div class="table-container" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-                    <table style="min-width:640px;">
+                    <table style="min-width:1100px;">
                         <thead>
                             <tr>
                                 <th>Date</th>
-                                <th>Avg Temp</th>
-                                <th>Avg Humidity</th>
-                                <th>Max Temp</th>
-                                <th>Min Temp</th>
-                                <th>Avg CO₂</th>
-                                <th>Max CO₂</th>
-                                <th>Avg Food</th>
-                                <th>Min Food</th>
+                                <th>Avg Temp</th><th>Min Temp</th><th>Max Temp</th>
+                                <th>Avg Humidity</th><th>Min Humidity</th><th>Max Humidity</th>
+                                <th>Avg CO₂</th><th>Min CO₂</th><th>Max CO₂</th>
+                                <th>Food (End of Day)</th>
                                 <th>Readings</th>
                             </tr>
                         </thead>
                         <tbody id="tableBody">
-                            <tr><td colspan="10" class="loading">Loading data...</td></tr>
+                            <tr><td colspan="12" class="loading">Loading data...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -404,15 +419,17 @@
     <div class="modal modal-calendar">
         <div class="modal-header">
             <h2><i class="fas fa-calendar-alt"></i> Inspection Calendar</h2>
-            <div style="display:flex;gap:8px;align-items:center;">
-                <button class="btn-secondary" style="padding:8px 14px;" onclick="openCompareNotes()">
-                    <i class="fas fa-code-compare"></i> Compare Notes
-                </button>
-                <button class="btn-secondary" style="padding:8px 14px;" onclick="exportNotesCsv()">
-                    <i class="fas fa-file-csv"></i> Export Excel
-                </button>
-                <button class="modal-close" onclick="closeCalendar()">&times;</button>
-            </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <select class="table-filter" id="readingsHourFilter" onchange="loadReadingsTable()">
+                        <option value="1">Last 1 hour</option>
+                        <option value="6">Last 6 hours</option>
+                        <option value="24" selected>Last 24 hours</option>
+                        <option value="168">Last 7 days</option>
+                    </select>
+                    <button class="btn-secondary" style="padding:7px 14px;" onclick="exportDataLog('readings')">
+                        <i class="fas fa-file-csv"></i> Export CSV
+                    </button>
+                </div>
         </div>
         <div class="modal-body" style="padding: 0;">
             <div class="calendar-body">

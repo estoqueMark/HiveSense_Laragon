@@ -54,7 +54,56 @@ class Dashboard extends Hive_Controller {
             }
             
             $responseData = array_merge($latest, $minMax ?? []);
+
+            // Food status is judged against the weight recorded as "full" (Food placed button)
+            $responseData['food_bands'] = [
+                'full_min'  => Alert_Model::FOOD_FULL_PCT,
+                'half_min'  => Alert_Model::FOOD_HALF_PCT,
+                'empty_max' => Alert_Model::FOOD_EMPTY_PCT,
+            ];
+            $responseData['food_full_g']     = null;
+            $responseData['food_ref_set_at'] = null;
+            $responseData['food_pending']    = false;
+            if ($sensorId) {
+                $row = $this->alertModel->getFoodRow($sensorId);
+                if ($row) {
+                    $responseData['food_pending'] = $row['pending_since'] !== null;
+                    if ($row['full_weight_g'] !== null) {
+                        $full = (float)$row['full_weight_g'];
+                        $responseData['food_full_g']     = $full;
+                        $responseData['food_ref_set_at'] = $row['set_at'];
+                        if (isset($latest['food_level']) && $latest['food_level'] !== null) {
+                            $st = Alert_Model::foodState((float)$latest['food_level'], $full);
+                            $responseData['food_state'] = $st['key'];
+                            $responseData['food_label'] = $st['label'];
+                            $responseData['food_pct']   = $st['pct'];
+                        }
+                    }
+                }
+            }
+
             $this->jsonResponse(['success' => true, 'data' => $responseData]);
+        } catch (Exception $e) {
+            $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    /** POST /api/food_placed  {sensor_id}  (apiarist/admin) — beekeeper put fresh food on the scale */
+    public function foodPlaced() {
+        try {
+            $this->requireApiarist();
+            $data     = $this->getJsonBody();
+            $sensorId = (int)($data['sensor_id'] ?? 0);
+            if (!$sensorId || !$this->hiveModel->getHiveById($sensorId)) {
+                $this->jsonResponse(['success' => false, 'message' => 'Select a hive first.']);
+                return;
+            }
+            $this->alertModel->requestFoodReference($sensorId, (int)($_SESSION['user_id'] ?? 0));
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Food placed. Keep it still on the scale: the next reading after about '
+                           . Alert_Model::FOOD_SETTLE_SEC . ' seconds is recorded as the full amount.',
+            ]);
         } catch (Exception $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -313,6 +362,155 @@ class Dashboard extends Hive_Controller {
     exit();
     }
     
+    public function exportDataLog() {
+    $sensorId = isset($_GET['sensor_id']) ? (int)$_GET['sensor_id'] : 0;
+    if (!$sensorId) {
+        http_response_code(400);
+        echo 'sensor_id is required.';
+        return;
+    }
+
+    $type     = (($_GET['type'] ?? '') === 'summary') ? 'summary' : 'readings';
+    $hive     = $this->hiveModel->getHiveById($sensorId);
+    $safeName = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $hive['hive_name'] ?? 'hive');
+    $filename = "hivesense_{$type}_{$safeName}_" . date('Ymd_His') . ".xlsx";
+
+    require_once BASE_PATH . '/vendor/autoload.php';
+    $ss    = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    $sheet = $ss->getActiveSheet();
+
+    // ── color helpers (same bands as the dashboard guide cards) ──
+    $RED = 'EF9A9A'; $ORANGE = 'FFCC80'; $YELLOW = 'FFF59D'; $GREEN = 'C8E6C9'; $BLUE = 'BBDEFB';
+
+    $tempColor = function ($v) use ($RED, $YELLOW, $GREEN, $BLUE) {
+        if ($v === null || $v === '') return null;
+        $v = (float)$v;
+        if ($v < 32) return $BLUE;
+        if ($v < 36) return $GREEN;
+        if ($v < 38) return $YELLOW;
+        return $RED;
+    };
+    $humColor = function ($v) use ($RED, $ORANGE, $YELLOW, $GREEN) {
+        if ($v === null || $v === '') return null;
+        $v = (float)$v;
+        if ($v < 50) return $ORANGE;
+        if ($v < 70) return $GREEN;
+        if ($v < 85) return $YELLOW;
+        return $RED;
+    };
+    $co2Color = function ($v) use ($RED, $ORANGE, $YELLOW, $GREEN) {
+        if ($v === null || $v === '') return null;
+        $v = (float)$v;
+        if ($v <= 700)  return $GREEN;
+        if ($v <= 1500) return $YELLOW;
+        if ($v <= 3000) return $ORANGE;
+        return $RED;
+    };
+    $foodColor = function ($v) use ($RED, $ORANGE, $YELLOW, $GREEN) {
+        if ($v === null || $v === '') return null;
+        $pct = ((float)$v / FOOD_MAX_G) * 100;
+        if ($pct >= 62.5) return $GREEN;
+        if ($pct >= 37.5) return $YELLOW;
+        if ($pct >= 12.5) return $ORANGE;
+        return $RED;
+    };
+    $paint = function (string $cell, ?string $rgb) use ($sheet) {
+        if ($rgb) $sheet->getStyle($cell)->getFill()->setFillType('solid')->getStartColor()->setRGB($rgb);
+    };
+
+    if ($type === 'readings') {
+        $sheet->setTitle('Individual Readings');
+        $hours = isset($_GET['hours']) ? max(1, (int)$_GET['hours']) : 24;
+        $rows  = $this->measurementModel->getReadings($hours, 20000, $sensorId);
+        $last  = 'G';
+
+        $sheet->fromArray(['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'CO2 (ppm)', 'Food (g)', 'Temp Status'], null, 'A1');
+
+        $r = 2;
+        foreach ($rows as $row) {
+            $t = $row['temperature'];
+            $status = '';
+            if ($t !== null) {
+                $status = $t < 32 ? 'Cold' : ($t < 36 ? 'Optimal' : ($t < 38 ? 'Warm' : 'Hot'));
+            }
+            $food = $row['food_level'] !== null ? round($row['food_level']) : null;
+
+            $sheet->fromArray([
+                $row['measurement_date'], $row['measurement_time'],
+                $t, $row['humidity'], $row['co2'], $food, $status,
+            ], null, "A$r");
+
+            $paint("C$r", $tempColor($t));
+            $paint("D$r", $humColor($row['humidity']));
+            $paint("E$r", $co2Color($row['co2']));
+            $paint("F$r", $foodColor($food));
+            $paint("G$r", $tempColor($t));
+            $r++;
+        }
+    } else {
+        $sheet->setTitle('Daily Summary');
+        $rows = $this->measurementModel->getDailyStats(365, $sensorId);
+        $last = 'J';
+
+        $sheet->fromArray(['Date', 'Avg Temp (°C)', 'Avg Humidity (%)', 'Max Temp (°C)', 'Min Temp (°C)',
+                           'Avg CO2 (ppm)', 'Max CO2 (ppm)', 'Avg Food (g)', 'Min Food (g)', 'Readings'], null, 'A1');
+
+        $r = 2;
+        foreach ($rows as $row) {
+            $avgFood = $row['avg_food_level'] !== null ? round($row['avg_food_level']) : null;
+            $minFood = $row['min_food_level'] !== null ? round($row['min_food_level']) : null;
+
+            $sheet->fromArray([
+                $row['measurement_date'], $row['avg_temperature'], $row['avg_humidity'],
+                $row['max_temperature'], $row['min_temperature'],
+                $row['avg_co2'], $row['max_co2'], $avgFood, $minFood, $row['reading_count'],
+            ], null, "A$r");
+
+            $paint("B$r", $tempColor($row['avg_temperature']));
+            $paint("C$r", $humColor($row['avg_humidity']));
+            $paint("D$r", $tempColor($row['max_temperature']));
+            $paint("E$r", $tempColor($row['min_temperature']));
+            $paint("F$r", $co2Color($row['avg_co2']));
+            $paint("G$r", $co2Color($row['max_co2']));
+            $paint("H$r", $foodColor($avgFood));
+            $paint("I$r", $foodColor($minFood));
+            $r++;
+        }
+    }
+
+    // header row
+    $sheet->getStyle("A1:{$last}1")->applyFromArray([
+        'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+        'fill'      => ['fillType' => 'solid', 'startColor' => ['rgb' => '2D7A3A']],
+        'alignment' => ['wrapText' => true, 'vertical' => 'center'],
+    ]);
+    foreach (range('A', $last) as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
+    $sheet->freezePane('A2');
+
+    // legend
+    $l = $r + 2;
+    $sheet->setCellValue("A$l", 'Legend');
+    $sheet->getStyle("A$l")->getFont()->setBold(true);
+    $legend = [
+        [$BLUE,   'Cold (temp below 32 °C)'],
+        [$GREEN,  'Optimal / Good / Well stocked'],
+        [$YELLOW, 'Warm / Humid / Moderate'],
+        [$ORANGE, 'Dry / High CO2 / Low food'],
+        [$RED,    'Hot / Very humid / Critical CO2 / Empty'],
+    ];
+    foreach ($legend as $i => [$rgb, $text]) {
+        $cell = 'A' . ($l + 1 + $i);
+        $sheet->setCellValue($cell, $text);
+        $paint($cell, $rgb);
+    }
+
+    if (ob_get_length()) ob_end_clean();
+    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Cache-Control: max-age=0');
+    (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($ss))->save('php://output');
+    exit();
+}
     public function getNoteByDate() {
         try {
             $this->requireApiarist();

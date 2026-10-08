@@ -181,6 +181,7 @@ elseif ($seg0 === 'api' && $seg1 !== '') {
         case 'current':               $dash->getCurrent();           break;
         case 'history':               $dash->getHistory();           break;
         case 'daily_stats':           $dash->getDailyStats();        break;
+        case 'readings_export':       $dash->exportDataLog();        break;
         // Hives
         case 'hives':                 $dash->getHives();             break;
         case 'hives_all':             $dash->getAllHives();           break;

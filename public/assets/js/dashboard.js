@@ -1677,3 +1677,13 @@ function renderCompareTable() {
         }
         window.location.href = `${BASE_URL}/api/note_export?sensor_id=${hiveId}`;
     }
+    
+    function exportDataLog(type) {
+    if (!currentSensorId) {
+        showToast('Select a hive first.', 'error');
+        return;
+    }
+    const params = new URLSearchParams({ sensor_id: currentSensorId, type });
+    if (type === 'readings') params.set('hours', $('#readingsHourFilter').val());
+    window.location.href = BASE_URL.replace(/\/+$/, '') + '/api/readings_export?' + params.toString();
+}
