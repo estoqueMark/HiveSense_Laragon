@@ -318,6 +318,9 @@
             <div id="panelReadings">
                 <div class="table-toolbar">
                     <span class="table-count" id="readingsCount">—</span>
+                    <button class="btn-secondary" style="padding:7px 14px;" onclick="exportDataLog('readings')">
+                        <i class="fas fa-file-csv"></i> Export CSV
+                    </button>
                     <select class="table-filter" id="readingsHourFilter" onchange="loadReadingsTable()">
                         <option value="1">Last 1 hour</option>
                         <option value="6">Last 6 hours</option>
@@ -420,15 +423,13 @@
         <div class="modal-header">
             <h2><i class="fas fa-calendar-alt"></i> Inspection Calendar</h2>
                 <div style="display:flex;gap:8px;align-items:center;">
-                    <select class="table-filter" id="readingsHourFilter" onchange="loadReadingsTable()">
-                        <option value="1">Last 1 hour</option>
-                        <option value="6">Last 6 hours</option>
-                        <option value="24" selected>Last 24 hours</option>
-                        <option value="168">Last 7 days</option>
-                    </select>
-                    <button class="btn-secondary" style="padding:7px 14px;" onclick="exportDataLog('readings')">
-                        <i class="fas fa-file-csv"></i> Export CSV
+                    <button class="btn-secondary" style="padding:7px 14px;" onclick="openCompareNotes()">
+                        <i class="fas fa-code-compare"></i> Compare
                     </button>
+                    <button class="btn-secondary" style="padding:7px 14px;" onclick="exportNotesCsv()">
+                        <i class="fas fa-file-excel"></i> Export Notes
+                    </button>
+                    <button class="modal-close" onclick="closeCalendar()">&times;</button>
                 </div>
         </div>
         <div class="modal-body" style="padding: 0;">

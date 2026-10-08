@@ -89,41 +89,47 @@ class Measurement_Model extends Base_Model {
         if ($sensorId) {
             $stmt = $this->connection->prepare(
                 'SELECT DATE(timestamp) AS measurement_date,
-                        ROUND(AVG(temperature), 1) AS avg_temperature,
-                        ROUND(AVG(humidity), 1)    AS avg_humidity,
-                        ROUND(AVG(co2), 1)         AS avg_co2,
-                        ROUND(MAX(temperature), 1) AS max_temperature,
-                        ROUND(MIN(temperature), 1) AS min_temperature,
-                        ROUND(MAX(co2), 1)         AS max_co2,
-                        ROUND(MIN(co2), 1)         AS min_co2,
-                        ROUND(AVG(food_level), 1)  AS avg_food_level,
-                        ROUND(MIN(food_level), 1)  AS min_food_level,
-                        COUNT(*) AS reading_count
-                 FROM hs_readings
-                 WHERE sensor_id = ?
-                 GROUP BY DATE(timestamp)
-                 ORDER BY measurement_date DESC
-                 LIMIT ?'
+                    ROUND(AVG(temperature), 1) AS avg_temperature,
+                    ROUND(MIN(temperature), 1) AS min_temperature,
+                    ROUND(MAX(temperature), 1) AS max_temperature,
+                    ROUND(AVG(humidity), 1)    AS avg_humidity,
+                    ROUND(MIN(humidity), 1)    AS min_humidity,
+                    ROUND(MAX(humidity), 1)    AS max_humidity,
+                    ROUND(AVG(co2), 1)         AS avg_co2,
+                    ROUND(MIN(co2), 1)         AS min_co2,
+                    ROUND(MAX(co2), 1)         AS max_co2,
+                    ROUND(AVG(food_level), 1)  AS avg_food_level,
+                    ROUND(MIN(food_level), 1)  AS min_food_level,
+                    -- ditoy adrian --
+                    COUNT(*) AS reading_count
+                FROM hs_readings
+                WHERE sensor_id = ?
+                GROUP BY DATE(timestamp)
+                ORDER BY measurement_date DESC
+                LIMIT ?'
             );
             $stmt->bind_param("ii", $sensorId, $limit);
         } else {
             $stmt = $this->connection->prepare(
                 'SELECT DATE(timestamp) AS measurement_date,
-                        ROUND(AVG(temperature), 1) AS avg_temperature,
-                        ROUND(AVG(humidity), 1)    AS avg_humidity,
-                        ROUND(AVG(co2), 1)         AS avg_co2,
-                        ROUND(MAX(temperature), 1) AS max_temperature,
-                        ROUND(MIN(temperature), 1) AS min_temperature,
-                        ROUND(MAX(co2), 1)         AS max_co2,
-                        ROUND(MIN(co2), 1)         AS min_co2,
-                        ROUND(AVG(food_level), 1)  AS avg_food_level,
-                        ROUND(MIN(food_level), 1)  AS min_food_level,
-                        COUNT(*) AS reading_count
-                 FROM hs_readings
-                 WHERE sensor_id IS NULL
-                 GROUP BY DATE(timestamp)
-                 ORDER BY measurement_date DESC
-                 LIMIT ?'
+                    ROUND(AVG(temperature), 1) AS avg_temperature,
+                    ROUND(MIN(temperature), 1) AS min_temperature,
+                    ROUND(MAX(temperature), 1) AS max_temperature,
+                    ROUND(AVG(humidity), 1)    AS avg_humidity,
+                    ROUND(MIN(humidity), 1)    AS min_humidity,
+                    ROUND(MAX(humidity), 1)    AS max_humidity,
+                    ROUND(AVG(co2), 1)         AS avg_co2,
+                    ROUND(MIN(co2), 1)         AS min_co2,
+                    ROUND(MAX(co2), 1)         AS max_co2,
+                    ROUND(AVG(food_level), 1)  AS avg_food_level,
+                    ROUND(MIN(food_level), 1)  AS min_food_level,
+                    -- ditoy adrian --                   
+                    COUNT(*) AS reading_count
+                FROM hs_readings
+                WHERE sensor_id = ?
+                GROUP BY DATE(timestamp)
+                ORDER BY measurement_date DESC
+                LIMIT ?'
             );
             $stmt->bind_param("i", $limit);
         }

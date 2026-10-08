@@ -420,20 +420,23 @@ async function loadDailyStats() {
 
 function renderTable(data) {
     const tbody = $('#tableBody');
+    const ppm = v => v != null ? parseFloat(v).toFixed(1) + ' ppm' : '—';
+    const deg = v => v != null ? v + '°C' : '—';
+    const pct = v => v != null ? v + '%'  : '—';
     let html = '';
     data.forEach(row => {
-        const avgCo2 = row.avg_co2 != null ? parseFloat(row.avg_co2).toFixed(1) + ' ppm' : '—';
-        const maxCo2 = row.max_co2 != null ? parseFloat(row.max_co2).toFixed(1) + ' ppm' : '—';
         html += `<tr>
             <td>${formatDate(row.measurement_date)}</td>
-            <td>${row.avg_temperature ?? '—'}°C</td>
-            <td>${row.avg_humidity ?? '—'}%</td>
-            <td>${row.max_temperature ?? '—'}°C</td>
-            <td>${row.min_temperature ?? '—'}°C</td>
-            <td style="color:#b45309;font-weight:500;">${avgCo2}</td>
-            <td style="color:#b45309;font-weight:500;">${maxCo2}</td>
-            <td style="color:#7c3aed;font-weight:500;">${fmtFood(row.avg_food_level)}</td>
-            <td style="color:#7c3aed;font-weight:500;">${fmtFood(row.min_food_level)}</td>
+            <td>${deg(row.avg_temperature)}</td>
+            <td>${deg(row.min_temperature)}</td>
+            <td>${deg(row.max_temperature)}</td>
+            <td>${pct(row.avg_humidity)}</td>
+            <td>${pct(row.min_humidity)}</td>
+            <td>${pct(row.max_humidity)}</td>
+            <td style="color:#b45309;font-weight:500;">${ppm(row.avg_co2)}</td>
+            <td style="color:#b45309;font-weight:500;">${ppm(row.min_co2)}</td>
+            <td style="color:#b45309;font-weight:500;">${ppm(row.max_co2)}</td>
+            <td style="color:#7c3aed;font-weight:500;">${fmtFood(row.end_food_level)}</td>
             <td>${row.reading_count ?? 0}</td>
         </tr>`;
     });
@@ -1677,7 +1680,7 @@ function renderCompareTable() {
         }
         window.location.href = `${BASE_URL}/api/note_export?sensor_id=${hiveId}`;
     }
-    
+
     function exportDataLog(type) {
     if (!currentSensorId) {
         showToast('Select a hive first.', 'error');
