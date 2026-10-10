@@ -100,7 +100,7 @@ class Measurement_Model extends Base_Model {
                     ROUND(MAX(co2), 1)         AS max_co2,
                     ROUND(AVG(food_level), 1)  AS avg_food_level,
                     ROUND(MIN(food_level), 1)  AS min_food_level,
-                    -- ditoy adrian --
+                    ROUND(CAST(SUBSTRING_INDEX(GROUP_CONCAT(food_level ORDER BY timestamp DESC), \',\', 1) AS DECIMAL(12,2)), 1) AS end_food_level,                
                     COUNT(*) AS reading_count
                 FROM hs_readings
                 WHERE sensor_id = ?
@@ -123,7 +123,7 @@ class Measurement_Model extends Base_Model {
                     ROUND(MAX(co2), 1)         AS max_co2,
                     ROUND(AVG(food_level), 1)  AS avg_food_level,
                     ROUND(MIN(food_level), 1)  AS min_food_level,
-                    -- ditoy adrian --                   
+                    ROUND(CAST(SUBSTRING_INDEX(GROUP_CONCAT(food_level ORDER BY timestamp DESC), \',\', 1) AS DECIMAL(12,2)), 1) AS end_food_level,                
                     COUNT(*) AS reading_count
                 FROM hs_readings
                 WHERE sensor_id = ?

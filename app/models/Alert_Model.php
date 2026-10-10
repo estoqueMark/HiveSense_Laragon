@@ -10,6 +10,10 @@ class Alert_Model extends Base_Model {
     const HUM_VERY_HUMID = 85;
     const CO2_HIGH        = 1500;
     const CO2_DANGER      = 3000;
+    const FOOD_FULL_PCT   = 75;   // >= 75% of recorded full weight = Full
+    const FOOD_HALF_PCT   = 40;   // >= 40% = Half full
+    const FOOD_EMPTY_PCT  = 10;   // <= 10% = Empty
+    const FOOD_SETTLE_SEC = 30;   // seconds to let the scale settle
 
     public function __construct() {
         parent::__construct();
@@ -185,6 +189,41 @@ class Alert_Model extends Base_Model {
         );
         $stmt->bind_param("ii", $userId, $alertId);
         return $stmt->execute();
+    }
+        public function getFoodRow(int $sensorId): ?array {
+        $stmt = $this->connection->prepare("SELECT * FROM hs_food_reference WHERE sensor_id = ? LIMIT 1");
+        $stmt->bind_param("i", $sensorId);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_assoc() ?: null;
+    }
+
+    public function requestFoodReference(int $sensorId, int $userId): void {
+        $stmt = $this->connection->prepare(
+            "INSERT INTO hs_food_reference (sensor_id, pending_since, set_by) VALUES (?, NOW(), ?)
+             ON DUPLICATE KEY UPDATE pending_since = NOW(), set_by = VALUES(set_by)"
+        );
+        $stmt->bind_param("ii", $sensorId, $userId);
+        $stmt->execute();
+    }
+
+    public function applyPendingFoodReference(int $sensorId, float $grams): void {
+        $secs = (int)self::FOOD_SETTLE_SEC;
+        $stmt = $this->connection->prepare(
+            "UPDATE hs_food_reference
+             SET full_weight_g = ?, set_at = NOW(), pending_since = NULL
+             WHERE sensor_id = ? AND pending_since IS NOT NULL
+               AND pending_since <= DATE_SUB(NOW(), INTERVAL {$secs} SECOND)"
+        );
+        $stmt->bind_param("di", $grams, $sensorId);
+        $stmt->execute();
+    }
+
+    public static function foodState(float $grams, float $full): array {
+        $pct = $full > 0 ? ($grams / $full) * 100 : 0;
+        if     ($pct >= self::FOOD_FULL_PCT)  return ['key' => 'full',     'label' => 'Full',      'pct' => round($pct)];
+        elseif ($pct >= self::FOOD_HALF_PCT)  return ['key' => 'moderate', 'label' => 'Half full', 'pct' => round($pct)];
+        elseif ($pct >  self::FOOD_EMPTY_PCT) return ['key' => 'low',      'label' => 'Low',       'pct' => round($pct)];
+        return ['key' => 'empty', 'label' => 'Empty', 'pct' => round($pct)];
     }
 }
 ?>

@@ -83,7 +83,7 @@ class Dashboard extends Hive_Controller {
             }
 
             $this->jsonResponse(['success' => true, 'data' => $responseData]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }

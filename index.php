@@ -215,6 +215,7 @@ elseif ($seg0 === 'api' && $seg1 !== '') {
         case 'alerts':                    $dash->getAlerts();            break;
         case 'alert_history':             $dash->getAlertHistory();      break;
         case 'alert_acknowledge':         $dash->acknowledgeAlert();     break;
+        case 'food_placed':               $dash->foodPlaced();           break;
         default:
             header('Content-Type: application/json');
             echo json_encode(['success' => false, 'message' => 'Unknown API endpoint.']);

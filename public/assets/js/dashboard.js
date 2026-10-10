@@ -140,24 +140,32 @@ async function loadCurrentData() {
             $('#minCo2').text(d.min_co2 != null ? parseFloat(d.min_co2).toFixed(1) : '--');
             $('#maxCo2').text(d.max_co2 != null ? parseFloat(d.max_co2).toFixed(1) : '--');
 
-            // Food level
-            const food = d.food_level ?? null;
+            // Food level (judged against the recorded "full" weight)
+            const food  = d.food_level ?? null;
+            const fullG = d.food_full_g != null ? parseFloat(d.food_full_g) : null;
+            const bands = d.food_bands || { full_min: 75, half_min: 40, empty_max: 10 };
+            if (fullG) {
+                const g = p => Math.round(fullG * p / 100);
+                $('#foodRangeFull').text(`≥ ${g(bands.full_min)} g`);
+                $('#foodRangeHalf').text(`${g(bands.half_min)}–${g(bands.full_min)} g`);
+                $('#foodRangeLow').text(`${g(bands.empty_max)}–${g(bands.half_min)} g`);
+                $('#foodRangeEmpty').text(`≤ ${g(bands.empty_max)} g`);
+                $('#foodRefText').text(`Full = ${Math.round(fullG)} g`);
+            } else {
+                $('#foodRangeFull, #foodRangeHalf, #foodRangeLow, #foodRangeEmpty').text('--');
+                $('#foodRefText').text('Press "Food placed" after putting food on the scale');
+            }
+            const fb = $('#foodStatusBadge').removeClass('full good moderate low empty');
             if (food !== null && food !== undefined) {
-                const grams = parseFloat(food);
-                const pct   = (grams / FOOD_MAX_G) * 100;   // only used to pick the badge band
-                $('#currentFood').text(grams.toFixed(0));
-                const fb = $('#foodStatusBadge');
-                let fcls, flabel;
-                if      (pct >= 87.5) { fcls = 'full';     flabel = 'Full'; }
-                else if (pct >= 62.5) { fcls = 'good';     flabel = 'Good'; }
-                else if (pct >= 37.5) { fcls = 'moderate'; flabel = 'Moderate'; }
-                else if (pct >= 12.5) { fcls = 'low';      flabel = 'Low'; }
-                else                  { fcls = 'empty';    flabel = 'Empty'; }
-                fb.text(flabel).removeClass('full good moderate low empty').addClass(fcls);
+                $('#currentFood').text(parseFloat(food).toFixed(0));
+                if (d.food_state) fb.text(d.food_label).addClass(d.food_state);
+                else fb.text('—');
             } else {
                 $('#currentFood').text('--');
-                $('#foodStatusBadge').text('—').removeClass('full good moderate low empty');
+                fb.text('—');
             }
+            $('#foodPlacedBtn').prop('disabled', !!d.food_pending);
+            $('#foodPendingNote').toggle(!!d.food_pending);
 
             if (d.measurement_date && d.measurement_time) {
                 const timeStr = `${d.measurement_date} ${d.measurement_time}`;
@@ -1689,4 +1697,22 @@ function renderCompareTable() {
     const params = new URLSearchParams({ sensor_id: currentSensorId, type });
     if (type === 'readings') params.set('hours', $('#readingsHourFilter').val());
     window.location.href = BASE_URL.replace(/\/+$/, '') + '/api/readings_export?' + params.toString();
-}
+    }
+
+    async function markFoodPlaced() {
+        if (!currentSensorId) { showToast('Select a hive first.', 'error'); return; }
+        $('#foodPlacedBtn').prop('disabled', true);
+        try {
+            const res = await fetch(BASE_URL.replace(/\/+$/, '') + '/api/food_placed', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sensor_id: currentSensorId })
+            });
+            const result = await res.json();
+            if (!result.success) throw new Error(result.message);
+            showToast(result.message, 'info');
+            $('#foodPendingNote').show();
+        } catch (e) {
+            $('#foodPlacedBtn').prop('disabled', false);
+            showToast('Error: ' + e.message, 'error');
+        }
+    }
