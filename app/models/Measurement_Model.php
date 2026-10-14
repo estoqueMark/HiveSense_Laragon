@@ -46,36 +46,44 @@ class Measurement_Model extends Base_Model {
             else                    $limit = 2000;
         }
 
+           // Take the NEWEST $limit rows in the window (DESC + LIMIT),
+        // then flip them back to oldest-first for the chart/table.
         if ($sensorId) {
             $stmt = $this->connection->prepare(
-                'SELECT ROUND(temperature, 1) AS temperature,
-                        ROUND(humidity, 1)    AS humidity,
-                        ROUND(co2, 1)         AS co2,
-                        ROUND(food_level, 1)  AS food_level,
-                        DATE(timestamp)       AS measurement_date,
-                        TIME(timestamp)       AS measurement_time,
-                        timestamp
-                 FROM hs_readings
-                 WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-                   AND sensor_id = ?
-                 ORDER BY timestamp ASC
-                 LIMIT ?'
+                'SELECT * FROM (
+                    SELECT ROUND(temperature, 1) AS temperature,
+                           ROUND(humidity, 1)    AS humidity,
+                           ROUND(co2, 1)         AS co2,
+                           ROUND(food_level, 1)  AS food_level,
+                           DATE(timestamp)       AS measurement_date,
+                           TIME(timestamp)       AS measurement_time,
+                           timestamp
+                    FROM hs_readings
+                    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+                      AND sensor_id = ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                 ) AS latest
+                 ORDER BY timestamp ASC'
             );
             $stmt->bind_param("iii", $hours, $sensorId, $limit);
         } else {
             $stmt = $this->connection->prepare(
-                'SELECT ROUND(temperature, 1) AS temperature,
-                        ROUND(humidity, 1)    AS humidity,
-                        ROUND(co2, 1)         AS co2,
-                        ROUND(food_level, 1)  AS food_level,
-                        DATE(timestamp)       AS measurement_date,
-                        TIME(timestamp)       AS measurement_time,
-                        timestamp
-                 FROM hs_readings
-                 WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
-                   AND sensor_id IS NULL
-                 ORDER BY timestamp ASC
-                 LIMIT ?'
+                'SELECT * FROM (
+                    SELECT ROUND(temperature, 1) AS temperature,
+                           ROUND(humidity, 1)    AS humidity,
+                           ROUND(co2, 1)         AS co2,
+                           ROUND(food_level, 1)  AS food_level,
+                           DATE(timestamp)       AS measurement_date,
+                           TIME(timestamp)       AS measurement_time,
+                           timestamp
+                    FROM hs_readings
+                    WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+                      AND sensor_id IS NULL
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                 ) AS latest
+                 ORDER BY timestamp ASC'
             );
             $stmt->bind_param("ii", $hours, $limit);
         }

@@ -175,6 +175,15 @@ async function loadCurrentData() {
                 $('#foodTime').text(`Updated: ${timeStr}`);
                 $('#lastUpdateText').text(`Last update: ${timeStr}`);
             }
+        } else {
+            // No readings for this hive yet — show a friendly state instead of stale values
+            $('#currentTemp, #currentHumidity, #minToday, #maxToday').text('--');
+            $('#currentCo2, #minCo2, #maxCo2, #currentFood').text('--');
+            $('#tempStatusBadge, #humidityStatusBadge, #co2StatusBadge, #foodStatusBadge')
+                .text('—')
+                .removeClass('cold optimal warm hot dry humid very-humid good moderate high danger full low empty');
+            $('#tempTime, #humidityTime, #co2Time, #foodTime').text('No readings yet');
+            $('#lastUpdateText').text('Last update: no readings yet');
         }
     } catch (e) {
         console.error('loadCurrentData error:', e);
@@ -222,10 +231,12 @@ async function loadHistoryData(hours) {
         const response = await fetch(apiUrl('/api/readings', { hours: hours || 1 }));
         const result   = await response.json();
         if (result.success && result.data && result.data.length > 0) {
+            $('#chartEmpty').hide();
             renderChartLive(result.data);
         } else {
             if (chart) chart.destroy();
-            chart = null; chartRenderMode = null;   
+            chart = null; chartRenderMode = null;
+            $('#chartEmpty').css('display', 'flex');
         }
     } catch (e) { console.error('loadHistoryData error:', e); }
 }
@@ -236,10 +247,12 @@ async function loadSummaryChart(days) {
         const response = await fetch(apiUrl('/api/history', { days }));
         const result   = await response.json();
         if (result.success && result.data && result.data.length > 0) {
+            $('#chartEmpty').hide();
             renderChartSummary(result.data);
         } else {
             if (chart) chart.destroy();
             chart = null; chartRenderMode = null;
+            $('#chartEmpty').css('display', 'flex');
         }
     } catch (e) { console.error('loadSummaryChart error:', e); }
 }
@@ -419,10 +432,11 @@ async function loadDailyStats() {
             renderTable(result.data);
             $('#summaryCount').text(`${result.data.length} day${result.data.length !== 1 ? 's' : ''}`);
         } else {
-            $('#tableBody').html('<tr><td colspan="10" class="loading">No data available.</td></tr>');
+            $('#tableBody').html('<tr><td colspan="12" class="loading">No readings found for this period.</td></tr>');
+            $('#summaryCount').text('0 days');
         }
     } catch (e) {
-        $('#tableBody').html('<tr><td colspan="10" class="loading">Error loading data</td></tr>');
+        $('#tableBody').html('<tr><td colspan="12" class="loading">Error loading data</td></tr>');
     }
 }
 
@@ -484,7 +498,7 @@ function selectHive(sensorId, element) {
     $('#foodStatusBadge').text('—').removeClass('full good moderate low empty');
     $('#tempTime, #humidityTime, #co2Time, #foodTime').text('--');
     $('#readingsTableBody').html('<tr><td colspan="8" class="loading">Loading data...</td></tr>');
-    $('#tableBody').html('<tr><td colspan="10" class="loading">Loading data...</td></tr>');
+    $('#tableBody').html('<tr><td colspan="12" class="loading">Loading data...</td></tr>');
     loadCurrentData();
     if (chartMode === 'live') loadHistoryData(currentHours);
     else loadSummaryChart(currentDays);
@@ -668,10 +682,10 @@ function populateInspectionForm(note) {
     const ratingMap = {
         insp_colony_strength: note.colony_strength,
         insp_brood_pattern_close: note.brood_pattern_close,
-        insp_brood_pattern_open: note.brood_pattern_open,
-        insp_honey_store: note.honey_store,
-        insp_pollen_store: note.pollen_store
+        insp_brood_pattern_open: note.brood_pattern_open
     };
+    $('#insp_honey_store').val(note.honey_store !== null && note.honey_store !== undefined ? String(note.honey_store) : '');
+    $('#insp_pollen_store').val(note.pollen_store !== null && note.pollen_store !== undefined ? String(note.pollen_store) : '');
     
     for (const [fieldId, val] of Object.entries(ratingMap)) {
         if (val !== null && val !== undefined) setRatingBar(fieldId, parseInt(val));
@@ -851,12 +865,16 @@ async function loadHiveManagerList() {
             result.data.forEach(h => {
                 hiveDataMap[h.sensor_id] = h;
                 const inactive = parseInt(h.is_active) === 0;
+                const isAdmin = USER_ROLE === 'admin';
                 const actions = inactive
-                    ? `<button class="hmi-btn restore" onclick="restoreHive(${h.sensor_id})" title="Restore"><i class="fas fa-undo"></i></button>
-                       <button class="hmi-btn delete" data-id="${h.sensor_id}" onclick="permanentDeleteHiveFromBtn(this)" title="Permanently Delete"><i class="fas fa-trash"></i></button>`
-                    : `<button class="hmi-btn edit" data-id="${h.sensor_id}" onclick="startEditHiveFromBtn(this)" title="Edit"><i class="fas fa-pen"></i></button>
-                       <button class="hmi-btn delete" data-id="${h.sensor_id}" onclick="confirmDeleteHiveFromBtn(this)" title="Deactivate"><i class="fas fa-trash"></i></button>`;
-                
+                    ? (isAdmin
+                        ? `<button class="hmi-btn restore" onclick="restoreHive(${h.sensor_id})" title="Restore"><i class="fas fa-undo"></i></button>
+                        <button class="hmi-btn delete" data-id="${h.sensor_id}" onclick="permanentDeleteHiveFromBtn(this)" title="Permanently Delete"><i class="fas fa-trash"></i></button>`
+                        : '')
+                    : `<button class="hmi-btn edit" data-id="${h.sensor_id}" onclick="startEditHiveFromBtn(this)" title="Edit"><i class="fas fa-pen"></i></button>`
+                    + (isAdmin
+                        ? `<button class="hmi-btn delete" data-id="${h.sensor_id}" onclick="confirmDeleteHiveFromBtn(this)" title="Deactivate"><i class="fas fa-trash"></i></button>`
+                        : '');
                 html += `<div class="hive-manager-item ${inactive ? 'inactive' : ''}">
                             <div class="hmi-info">
                                 <h4>${escapeHtml(h.hive_name)}${inactive ? '<span class="hmi-badge">Inactive</span>' : ''}</h4>
@@ -1586,8 +1604,8 @@ const COMPARE_FIELDS = [
     { key: 'brood_pattern_open', label: 'Open Brood' },
     { key: 'brood_pattern_close', label: 'Close Brood' },
     { key: 'brood_pattern_type', label: 'Brood Pattern Type' },
-    { key: 'honey_store', label: 'Honey Store' },
-    { key: 'pollen_store', label: 'Pollen Store' },
+    { key: 'honey_store', label: 'Honey Store', format: v => (v === null || v === undefined || v === '') ? null : `${v} Frame${parseInt(v) === 1 ? '' : 's'}` },
+    { key: 'pollen_store', label: 'Pollen Store', format: v => (v === null || v === undefined || v === '') ? null : `${v} Frame${parseInt(v) === 1 ? '' : 's'}` },
     { key: 'temperament', label: 'Temperament' },
     { key: 'treatment_date', label: 'Treatment Date' },
     { key: 'chemical_brand', label: 'Chemical / Brand' },

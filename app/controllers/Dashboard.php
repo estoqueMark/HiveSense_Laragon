@@ -151,7 +151,7 @@ class Dashboard extends Hive_Controller {
 
     public function createHive() {
         try {
-            $this->requireAdmin();
+            $this->requireApiarist();
             $data = $this->getJsonBody();
             $hiveName = trim($data['hive_name'] ?? '');
             $location = trim($data['location'] ?? '');
@@ -174,7 +174,7 @@ class Dashboard extends Hive_Controller {
 
     public function updateHive() {
         try {
-            $this->requireAdmin();
+            $this->requireApiarist();
             $data = $this->getJsonBody();
             $id = (int)($data['sensor_id'] ?? 0);
             $hiveName = trim($data['hive_name'] ?? '');
@@ -321,14 +321,16 @@ class Dashboard extends Hive_Controller {
             $n['queen_species'] ?? '', $n['queen_age'] ?? '',
             $n['comb_frames_change'] ?? '', $n['wax_foundation_change'] ?? '', $feeding,
             $n['colony_strength'] ?? '', $n['brood_pattern_open'] ?? '', $n['brood_pattern_close'] ?? '',
-            $n['brood_pattern_type'] ?? '', $n['honey_store'] ?? '', $n['pollen_store'] ?? '',
+            $n['brood_pattern_type'] ?? '',
+            (($n['honey_store'] ?? '') !== '') ? $n['honey_store'] . ' Frame' . ((int)$n['honey_store'] === 1 ? '' : 's') : '',
+            $n['pollen_store'] ?? '',
             $temper !== '' ? ucwords(str_replace('_', ' ', $temper)) : '',
             $n['treatment_date'] ?? '', $n['chemical_brand'] ?? '', $n['remarks'] ?? '',
         ], null, "A$r");
 
-        // rating columns: I, J, K, M, N
+        // rating columns: I, J, K, N (honey store M is now a frame count, not a rating)
         foreach (['I' => 'colony_strength', 'J' => 'brood_pattern_open', 'K' => 'brood_pattern_close',
-                  'M' => 'honey_store', 'N' => 'pollen_store'] as $col => $key) {
+                  'N' => 'pollen_store'] as $col => $key) {
             $c = $ratingColor($n[$key] ?? null);
             if ($c) $paint("$col$r", $c);
         }

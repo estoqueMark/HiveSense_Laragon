@@ -92,14 +92,16 @@
         .th-scale-label { color: var(--text-dim); }
 
         @media (max-width: 1400px) {
-            .th-grid { grid-template-columns: 1fr 1fr 1fr 1fr; }
-            .th-scale-card { display: none; }  /* collapse guides on smaller screens */
+            .th-grid { grid-template-columns: repeat(4, 1fr); }
+            .th-scale-card { grid-column: span 2; }   /* guides sit side by side on a second row */
         }
         @media (max-width: 900px) {
             .th-grid { grid-template-columns: 1fr 1fr; }
+            .th-scale-card { grid-column: span 2; }   /* guides take a full row each */
         }
         @media (max-width: 500px) {
             .th-grid { grid-template-columns: 1fr; }
+            .th-scale-card { grid-column: auto; }
         }
 
 /* ── CO2 Section ───────────────────────────────── */

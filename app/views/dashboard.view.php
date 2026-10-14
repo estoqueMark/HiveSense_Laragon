@@ -13,9 +13,11 @@
         </div>
         <div class="sidebar-section-label">
             <span>MY HIVES</span>
+            <?php if (in_array($_SESSION['role'] ?? '', ['admin','apiarist'])): ?>
             <button class="btn-icon-sm" onclick="openHiveManager()" title="Manage Hives">
                 <i class="fas fa-cog"></i>
             </button>
+            <?php endif; ?>
         </div>
         
         <div class="hive-list" id="hiveList">
@@ -297,6 +299,9 @@
             </div>
             <div class="chart-container">
                 <canvas id="historyChart"></canvas>
+                <div id="chartEmpty" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.9rem;">
+                    <span><i class="fas fa-chart-line" style="margin-right:8px;opacity:0.5;"></i>No readings for this hive or period.</span>
+                </div>
             </div>
         </div>
 
@@ -532,7 +537,7 @@
                         </select>
                     </div>
                     
-                    <div class="insp-section-label">Colony Health Ratings (1-10)</div>
+                    <div class="insp-section-label">Colony Health (1-10)</div>
                     
                     <div class="form-group">
                         <label>Colony Strength</label>
@@ -559,14 +564,26 @@
                     
                     <div class="form-group">
                         <label>Honey Store</label>
-                        <div class="rating-bar" data-field="insp_honey_store" data-max="10"></div>
-                        <input type="hidden" id="insp_honey_store">
+                        <select id="insp_honey_store">
+                            <option value="">Not recorded</option>
+                            <option value="1">1 Frame</option>
+                            <option value="2">2 Frames</option>
+                            <option value="3">3 Frames</option>
+                            <option value="4">4 Frames</option>
+                            <option value="5">5 Frames</option>
+                        </select>
                     </div>
                     
                     <div class="form-group">
                         <label>Pollen Store</label>
-                        <div class="rating-bar" data-field="insp_pollen_store" data-max="10"></div>
-                        <input type="hidden" id="insp_pollen_store">
+                        <select id="insp_pollen_store">
+                            <option value="">Not recorded</option>
+                            <option value="1">1 Frame</option>
+                            <option value="2">2 Frames</option>
+                            <option value="3">3 Frames</option>
+                            <option value="4">4 Frames</option>
+                            <option value="5">5 Frames</option>
+                        </select>
                     </div>
                     
                     <div class="form-group">
@@ -853,6 +870,7 @@
     const BASE_URL = '<?= ROOT ?>';
     const FOOD_MAX_G = <?= (int)FOOD_MAX_G ?>;
     const CSRF_TOKEN = <?= json_encode($_SESSION['csrf_token'] ?? '') ?>;
+    const USER_ROLE = <?= json_encode($_SESSION['role'] ?? 'viewer') ?>;
     <?php if (!empty($roleNotice)): ?>
     window.addEventListener('DOMContentLoaded', function() {
         showToast(<?= json_encode($roleNotice) ?>, 'info');
