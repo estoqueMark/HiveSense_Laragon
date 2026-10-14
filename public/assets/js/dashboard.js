@@ -387,8 +387,12 @@ async function loadReadingsTable() {
     const hours = parseInt($('#readingsHourFilter').val()) || 24;
     const tbody = $('#readingsTableBody');
     tbody.html('<tr><td colspan="8" class="loading">Loading...</td></tr>');
+    $('#readingsNote').hide();
     try {
-        const response = await fetch(apiUrl('/api/readings', { hours }));
+        const df = $('#readingsDateFrom').val();
+        const dt = $('#readingsDateTo').val();
+        const params = df ? { date_from: df, date_to: dt || df } : { hours };
+        const response = await fetch(apiUrl('/api/readings', params));
         const result   = await response.json();
         if (!result.success || !result.data || !result.data.length) {
             tbody.html('<tr><td colspan="8" class="loading">No readings found for this period.</td></tr>');
@@ -396,6 +400,11 @@ async function loadReadingsTable() {
         }
         const rows = result.data;
         $('#readingsCount').text(`${rows.length} reading${rows.length !== 1 ? 's' : ''}`);
+        if (result.total != null && result.total > rows.length) {
+            $('#readingsNote')
+                .text(`Showing the first ${rows.length} of ${result.total} readings in this range. Use Export CSV for the full data.`)
+                .show();
+        }
         let html = '';
         [...rows].reverse().forEach((r, i) => {
             const temp = parseFloat(r.temperature);
@@ -1713,7 +1722,16 @@ function renderCompareTable() {
         return;
     }
     const params = new URLSearchParams({ sensor_id: currentSensorId, type });
-    if (type === 'readings') params.set('hours', $('#readingsHourFilter').val());
+    if (type === 'readings') {
+        const df = $('#readingsDateFrom').val();
+        const dt = $('#readingsDateTo').val();
+        if (df) {
+            params.set('date_from', df);
+            params.set('date_to', dt || df);
+        } else {
+            params.set('hours', $('#readingsHourFilter').val());
+        }
+    }
     window.location.href = BASE_URL.replace(/\/+$/, '') + '/api/readings_export?' + params.toString();
     }
 

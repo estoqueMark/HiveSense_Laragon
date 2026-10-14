@@ -92,6 +92,42 @@ class Measurement_Model extends Base_Model {
         return $result->fetch_all(MYSQLI_ASSOC);
     }
 
+    // Readings between two dates (inclusive), oldest first
+    public function getReadingsByRange(string $from, string $to, int $limit = 5000, ?int $sensorId = null): array {
+        $start = $from . ' 00:00:00';
+        $end   = $to   . ' 23:59:59';
+        $stmt = $this->connection->prepare(
+            'SELECT ROUND(temperature, 1) AS temperature,
+                    ROUND(humidity, 1)    AS humidity,
+                    ROUND(co2, 1)         AS co2,
+                    ROUND(food_level, 1)  AS food_level,
+                    DATE(timestamp)       AS measurement_date,
+                    TIME(timestamp)       AS measurement_time,
+                    timestamp
+            FROM hs_readings
+            WHERE timestamp BETWEEN ? AND ?
+            AND sensor_id <=> ?
+            ORDER BY timestamp ASC
+            LIMIT ?'
+        );
+        $stmt->bind_param("ssii", $start, $end, $sensorId, $limit);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
+
+    // How many readings exist in a date range (used for the "showing X of Y" note)
+public function countReadingsByRange(string $from, string $to, ?int $sensorId = null): int {
+    $start = $from . ' 00:00:00';
+    $end   = $to   . ' 23:59:59';
+    $stmt = $this->connection->prepare(
+        'SELECT COUNT(*) AS c FROM hs_readings
+         WHERE timestamp BETWEEN ? AND ? AND sensor_id <=> ?'
+    );
+    $stmt->bind_param("ssi", $start, $end, $sensorId);
+    $stmt->execute();
+    return (int)$stmt->get_result()->fetch_assoc()['c'];
+}
+
     // Get daily statistics — now scoped to a specific hive
     public function getDailyStats(int $limit = 30, ?int $sensorId = null): array {
         if ($sensorId) {

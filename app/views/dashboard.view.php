@@ -326,13 +326,17 @@
                     <button class="btn-secondary" style="padding:7px 14px;" onclick="exportDataLog('readings')">
                         <i class="fas fa-file-csv"></i> Export CSV
                     </button>
-                    <select class="table-filter" id="readingsHourFilter" onchange="loadReadingsTable()">
+                    <select class="table-filter" id="readingsHourFilter"
+                            onchange="$('#readingsDateFrom, #readingsDateTo').val(''); loadReadingsTable()">
                         <option value="1">Last 1 hour</option>
                         <option value="6">Last 6 hours</option>
                         <option value="24" selected>Last 24 hours</option>
                         <option value="168">Last 7 days</option>
                     </select>
+                    <input type="date" class="table-filter" id="readingsDateFrom" title="From" onchange="loadReadingsTable()">
+                    <input type="date" class="table-filter" id="readingsDateTo" title="To (optional)" onchange="loadReadingsTable()">
                 </div>
+                <div id="readingsNote" style="display:none;margin-bottom:10px;padding:8px 12px;font-size:0.8rem;color:#92400e;background:rgba(245,197,24,0.16);border-radius:8px;"></div>
                 <div class="table-container" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
                     <table style="min-width:720px;">
                         <thead>

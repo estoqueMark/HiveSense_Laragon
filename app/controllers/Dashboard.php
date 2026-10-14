@@ -35,8 +35,17 @@ class Dashboard extends Hive_Controller {
             $hours = isset($_GET['hours']) ? (int)$_GET['hours'] : 24;
             $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 0;
             $sensorId = isset($_GET['sensor_id']) ? (int)$_GET['sensor_id'] : null;
-            $result = $this->measurementModel->getReadings($hours, $limit, $sensorId);
-            $this->jsonResponse(['success' => true, 'data' => $result]);
+            $from  = $_GET['date_from'] ?? '';
+            $to    = $_GET['date_to']   ?? '';
+            $total = null;
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = $from;
+                $total  = $this->measurementModel->countReadingsByRange($from, $to, $sensorId);
+                $result = $this->measurementModel->getReadingsByRange($from, $to, 1000, $sensorId);
+            } else {
+                $result = $this->measurementModel->getReadings($hours, $limit, $sensorId);
+            }
+            $this->jsonResponse(['success' => true, 'data' => $result, 'total' => $total]);
         } catch (Exception $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -323,14 +332,13 @@ class Dashboard extends Hive_Controller {
             $n['colony_strength'] ?? '', $n['brood_pattern_open'] ?? '', $n['brood_pattern_close'] ?? '',
             $n['brood_pattern_type'] ?? '',
             (($n['honey_store'] ?? '') !== '') ? $n['honey_store'] . ' Frame' . ((int)$n['honey_store'] === 1 ? '' : 's') : '',
-            $n['pollen_store'] ?? '',
+            (($n['pollen_store'] ?? '') !== '') ? $n['pollen_store'] . ' Frame' . ((int)$n['pollen_store'] === 1 ? '' : 's') : '',
             $temper !== '' ? ucwords(str_replace('_', ' ', $temper)) : '',
             $n['treatment_date'] ?? '', $n['chemical_brand'] ?? '', $n['remarks'] ?? '',
         ], null, "A$r");
 
         // rating columns: I, J, K, N (honey store M is now a frame count, not a rating)
-        foreach (['I' => 'colony_strength', 'J' => 'brood_pattern_open', 'K' => 'brood_pattern_close',
-                  'N' => 'pollen_store'] as $col => $key) {
+        foreach (['I' => 'colony_strength', 'J' => 'brood_pattern_open', 'K' => 'brood_pattern_close'] as $col => $key) {
             $c = $ratingColor($n[$key] ?? null);
             if ($c) $paint("$col$r", $c);
         }
@@ -422,8 +430,15 @@ class Dashboard extends Hive_Controller {
 
     if ($type === 'readings') {
         $sheet->setTitle('Individual Readings');
-        $hours = isset($_GET['hours']) ? max(1, (int)$_GET['hours']) : 24;
-        $rows  = $this->measurementModel->getReadings($hours, 20000, $sensorId);
+        $from = $_GET['date_from'] ?? '';
+        $to   = $_GET['date_to']   ?? '';
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = $from;
+            $rows = $this->measurementModel->getReadingsByRange($from, $to, 20000, $sensorId);
+        } else {
+            $hours = isset($_GET['hours']) ? max(1, (int)$_GET['hours']) : 24;
+            $rows  = $this->measurementModel->getReadings($hours, 20000, $sensorId);
+        }
         $last  = 'G';
 
         $sheet->fromArray(['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'CO2 (ppm)', 'Food (g)', 'Temp Status'], null, 'A1');
