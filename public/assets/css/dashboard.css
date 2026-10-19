@@ -513,3 +513,7 @@
 @media (max-width: 900px) {
     .food-grid { grid-template-columns: 1fr; }
 }
+
+.pager { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; }
+.pager span { font-size:0.75rem; color:var(--text-dim); }
+.pager button:disabled { opacity:0.4; cursor:default; }

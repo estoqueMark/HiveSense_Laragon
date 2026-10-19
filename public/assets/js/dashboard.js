@@ -383,53 +383,76 @@ function switchTab(tab) {
 }
 
 // Individual readings table
-async function loadReadingsTable() {
+let readingsRows = [];
+let readingsPageNum = 1;
+const READINGS_PER_PAGE = 20;
+
+async function loadReadingsTable(keepPage = false) {
     const hours = parseInt($('#readingsHourFilter').val()) || 24;
     const tbody = $('#readingsTableBody');
-    tbody.html('<tr><td colspan="8" class="loading">Loading...</td></tr>');
-    $('#readingsNote').hide();
+    if (!keepPage) tbody.html('<tr><td colspan="8" class="loading">Loading...</td></tr>');
     try {
-        const df = $('#readingsDateFrom').val();
-        const dt = $('#readingsDateTo').val();
-        const params = df ? { date_from: df, date_to: dt || df } : { hours };
-        const response = await fetch(apiUrl('/api/readings', params));
+        const response = await fetch(apiUrl('/api/readings', { hours }));
         const result   = await response.json();
         if (!result.success || !result.data || !result.data.length) {
+            readingsRows = [];
             tbody.html('<tr><td colspan="8" class="loading">No readings found for this period.</td></tr>');
-            $('#readingsCount').text('0 readings'); return;
+            $('#readingsCount').text('0 readings');
+            $('#pgInfo').text('—');
+            $('#pgPrev, #pgNext').prop('disabled', true);
+            return;
         }
-        const rows = result.data;
-        $('#readingsCount').text(`${rows.length} reading${rows.length !== 1 ? 's' : ''}`);
-        if (result.total != null && result.total > rows.length) {
-            $('#readingsNote')
-                .text(`Showing the first ${rows.length} of ${result.total} readings in this range. Use Export CSV for the full data.`)
-                .show();
-        }
-        let html = '';
-        [...rows].reverse().forEach((r, i) => {
-            const temp = parseFloat(r.temperature);
-            let pill, pillClass;
-            if      (isNaN(temp)) { pill = '—';     pillClass = ''; }
-            else if (temp < 32) { pill = 'Cold';    pillClass = 'pill-cold'; }
-            else if (temp < 36) { pill = 'Optimal'; pillClass = 'pill-optimal'; }
-            else if (temp < 38) { pill = 'Warm';    pillClass = 'pill-warm'; }
-            else                { pill = 'Hot';     pillClass = 'pill-hot'; }
-            const co2cell = r.co2 != null ? `${parseFloat(r.co2).toFixed(1)} ppm` : '—';
-            html += `<tr>
-                <td style="color:var(--text-dim);font-size:0.75rem;">${rows.length - i}</td>
-                <td>${r.measurement_date}</td>
-                <td style="font-weight:500;">${r.measurement_time}</td>
-                <td><strong>${r.temperature != null ? r.temperature + '°C' : '—'}</strong></td>
-                <td>${r.humidity != null ? r.humidity + '%' : '—'}</td>
-                <td style="color:#b45309;font-weight:500;">${co2cell}</td>
-                <td style="color:#7c3aed;font-weight:500;">${fmtFood(r.food_level)}</td>
-                <td><span class="status-pill ${pillClass}">${pill}</span></td>
-            </tr>`;
-        });
-        tbody.html(html);
+        readingsRows = [...result.data].reverse();   // newest first
+        if (!keepPage) readingsPageNum = 1;
+        renderReadingsPage(hours);
     } catch(e) {
         tbody.html(`<tr><td colspan="8" class="loading">Error: ${e.message}</td></tr>`);
     }
+}
+
+function readingsPage(dir) {
+    readingsPageNum += dir;
+    renderReadingsPage();
+}
+
+function renderReadingsPage(hours) {
+    hours = hours || parseInt($('#readingsHourFilter').val()) || 24;
+    const total = readingsRows.length;
+    const pages = Math.max(1, Math.ceil(total / READINGS_PER_PAGE));
+    readingsPageNum = Math.min(Math.max(1, readingsPageNum), pages);
+
+    const start = (readingsPageNum - 1) * READINGS_PER_PAGE;
+    const slice = readingsRows.slice(start, start + READINGS_PER_PAGE);
+
+    const caps = { 1: 120, 6: 720, 24: 1000, 168: 2000 };
+    const capped = total >= (caps[hours] || 2000);
+    $('#readingsCount').text(`${total}${capped ? '+' : ''} reading${total !== 1 ? 's' : ''}`);
+    $('#pgInfo').text(`${start + 1}–${start + slice.length} of ${total}${capped ? '+' : ''}`);
+    $('#pgPrev').prop('disabled', readingsPageNum <= 1);
+    $('#pgNext').prop('disabled', readingsPageNum >= pages);
+
+    let html = '';
+    slice.forEach((r, i) => {
+        const temp = parseFloat(r.temperature);
+        let pill, pillClass;
+        if      (isNaN(temp)) { pill = '—';     pillClass = ''; }
+        else if (temp < 32) { pill = 'Cold';    pillClass = 'pill-cold'; }
+        else if (temp < 36) { pill = 'Optimal'; pillClass = 'pill-optimal'; }
+        else if (temp < 38) { pill = 'Warm';    pillClass = 'pill-warm'; }
+        else                { pill = 'Hot';     pillClass = 'pill-hot'; }
+        const co2cell = r.co2 != null ? `${parseFloat(r.co2).toFixed(1)} ppm` : '—';
+        html += `<tr>
+            <td style="color:var(--text-dim);font-size:0.75rem;">${total - (start + i)}</td>
+            <td>${r.measurement_date}</td>
+            <td style="font-weight:500;">${r.measurement_time}</td>
+            <td><strong>${r.temperature != null ? r.temperature + '°C' : '—'}</strong></td>
+            <td>${r.humidity != null ? r.humidity + '%' : '—'}</td>
+            <td style="color:#b45309;font-weight:500;">${co2cell}</td>
+            <td style="color:#7c3aed;font-weight:500;">${fmtFood(r.food_level)}</td>
+            <td><span class="status-pill ${pillClass}">${pill}</span></td>
+        </tr>`;
+    });
+    $('#readingsTableBody').html(html);
 }
 
 // Daily summary table
@@ -481,7 +504,7 @@ function refreshData() {
 
     // Only refetch whichever table tab is actually visible
     if ($('#panelReadings').is(':visible')) {
-        loadReadingsTable();
+        loadReadingsTable(true);
     } else {
         loadDailyStats();
     }

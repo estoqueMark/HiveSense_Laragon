@@ -356,6 +356,11 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="pager">
+                    <button class="btn-secondary" id="pgPrev" onclick="readingsPage(-1)"><i class="fas fa-chevron-left"></i> Prev</button>
+                    <span id="pgInfo">—</span>
+                    <button class="btn-secondary" id="pgNext" onclick="readingsPage(1)">Next <i class="fas fa-chevron-right"></i></button>
+                </div>
             </div>
 
             <!-- Daily Summary -->
