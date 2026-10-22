@@ -124,6 +124,10 @@ class Auth_Controller extends Base_Controller {
             $_SESSION['register_error'] = 'Username, email and password are required.';
             $this->redirect('/register');
         }
+        if (empty($_POST['agree_terms'])) {
+            $_SESSION['register_error'] = 'You must agree to the Terms of Service & Privacy Policy to create an account.';
+            $this->redirect('/register');
+        }
         if (!preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
             $_SESSION['register_error'] = 'Username must be 3–30 characters (letters, numbers, underscores only).';
             $this->redirect('/register');

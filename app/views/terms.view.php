@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Terms of Service & Privacy Policy — HiveSense</title>
+    <link rel="icon" type="image/png" href="<?= ROOT ?>/public/assets/img/cordillera-apiculture-logo.png">    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= ROOT ?>/public/assets/css/terms.css">
@@ -12,8 +13,9 @@
 
 <div class="terms-page">
     <div class="terms-header">
-        <a href="<?= ROOT ?>/login" class="back-home">
-            <i class="fas fa-arrow-left"></i> Back to Sign In
+        <?php $fromRegister = (($_GET['from'] ?? '') === 'register'); ?>
+        <a href="<?= ROOT ?><?= $fromRegister ? '/register' : '/login' ?>" class="back-home">
+            <i class="fas fa-arrow-left"></i> Back to <?= $fromRegister ? 'Create Account' : 'Sign In' ?>
         </a>
         <div class="terms-eyebrow">HiveSense</div>
         <h1 class="terms-title">Terms of Service &amp; Privacy Policy</h1>

@@ -1262,3 +1262,11 @@
             .main-content { padding: 68px 12px 40px; }
             .chart-container { height: 220px; }
         }
+        /* Long hive names / locations must not break the sidebar or Hive Manager */
+        .hive-info { min-width: 0; flex: 1; }
+        .hive-info h4, .hive-info p {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .hmi-info { min-width: 0; flex: 1; }
+        .hmi-info h4, .hmi-info p { overflow-wrap: anywhere; }
+        .hmi-actions { flex-shrink: 0; }

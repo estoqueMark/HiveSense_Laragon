@@ -29,6 +29,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mode     = $in['mode'] ?? 'normal';
     $action   = $in['action'] ?? 'live';
 
+    // Exact overrides: blank = use the mode / normal drift, a number = use that exact value
+    $exactCo2  = (isset($in['co2'])  && $in['co2']  !== '' && is_numeric($in['co2']))  ? (float)$in['co2']  : null;
+    $exactFood = (isset($in['food']) && $in['food'] !== '' && is_numeric($in['food'])) ? (float)$in['food'] : null;
+
     $targets = [
         'normal' => [34.5, 60, 600],
         'hot'    => [40.0, 60, 600],
@@ -83,8 +87,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $wave = $action === 'backfill' ? sin(($secondsAgo / 3600) / 24 * 2 * M_PI) * 1.2 : 0;
         $temp = $step($temp, $tT + $wave, 0.25, -40, 80);
         $hum  = $step($hum,  $tH, 0.8, 0, 100);
-        $co2  = $step($co2,  $tC, 25, 300, 10000);
-        $food = max(0, $food - mt_rand(0, 100) / 100);   // drains 0-1 g per reading
+
+        // CO2: exact value if given, otherwise drift toward the mode target
+        $co2  = $exactCo2 !== null ? $exactCo2 : $step($co2, $tC, 25, 300, 10000);
+
+        // Food: exact value if given, otherwise drains 0-1 g per reading
+        $food = $exactFood !== null ? $exactFood : max(0, $food - mt_rand(0, 100) / 100);
 
         $t = round($temp, 2); $h = round($hum, 2); $c = round($co2, 1); $f = round($food, 1);
 
@@ -150,6 +158,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
+<div class="row">
+    <div>
+        <label>Exact CO₂ (ppm, blank = auto)</label>
+        <input type="number" id="co2" step="any" placeholder="e.g. 1200">
+    </div>
+    <div>
+        <label>Exact food (g, blank = auto)</label>
+        <input type="number" id="food" step="any" placeholder="e.g. 250">
+    </div>
+</div>
+
 <label>Live interval (seconds)</label>
 <input type="number" id="interval" value="10" min="2">
 
@@ -185,7 +204,9 @@ async function call(extra) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             key: $('key').value, sensor: $('sensor').value,
-            mode: $('mode').value, state, ...extra
+            mode: $('mode').value,
+            co2: $('co2').value, food: $('food').value,
+            state, ...extra
         })
     });
     const data = await res.json();

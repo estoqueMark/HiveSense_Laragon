@@ -406,11 +406,11 @@
                 <input type="hidden" id="editHiveId" value="">
                 <div class="form-group">
                     <label>Hive Name <span class="required">*</span></label>
-                    <input type="text" id="hiveNameInput" placeholder="e.g., East Apiary">
+                    <input type="text" id="hiveNameInput" maxlength="60" placeholder="e.g., East Apiary">
                 </div>
                 <div class="form-group">
                     <label>Location</label>
-                    <input type="text" id="hiveLocationInput" placeholder="e.g., Backyard Garden">
+                    <input type="text" id="hiveLocationInput" maxlength="100" placeholder="e.g., Backyard Garden">
                 </div>
                 <div class="form-actions">
                     <button class="btn-secondary" id="hiveCancelEdit" style="display:none" onclick="resetHiveForm()">Cancel</button>
@@ -464,7 +464,7 @@
                     
                     <!-- Hive Selector -->
                     <div class="form-group">
-                        <label><i class="fas fa-hive"></i> Select Hive</label>
+                        <label><i class="fas fa-bezier-curve"></i> Select Hive</label>
                         <select id="insp_hive_id" class="table-filter" onchange="onHiveChange()">
                             <?php if (!empty($hives)): ?>
                                 <?php foreach ($hives as $hive): ?>

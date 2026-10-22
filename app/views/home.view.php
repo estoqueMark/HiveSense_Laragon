@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CRAC — Cordillera Regional Apiculture Center</title>
+    <link rel="icon" type="image/png" href="<?= ROOT ?>/public/assets/img/cordillera-apiculture-logo.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= ROOT ?>/public/assets/css/home.css?v=<?= time() ?>">
@@ -25,14 +26,23 @@
         <i class="fas fa-bars" id="navIcon"></i>
     </button>
 
-    <ul class="nav-links" id="navLinks">
+    <ul class="nav-links" id="navLinks">        
+    	<li><a href="#announcements">Announcements</a></li>
         <li><a href="#vmg">Vision & Mission</a></li>
         <li><a href="#history">History</a></li>
         <li><a href="#location">Location</a></li>
-        <li><a href="#announcements">Announcements</a></li>
         <li><a href="<?= ROOT ?>/login" class="nav-cta"><i class="fas fa-sign-in-alt"></i> Sign In to HiveSense</a></li>
     </ul>
 </nav>
+
+<!-- ══ ANNOUNCEMENT BANNER ═════════════════════════════════ -->
+<div class="ann-banner" id="annBanner" hidden>
+    <i class="fas fa-bullhorn ann-banner-icon" id="annBannerIcon"></i>
+    <a href="#announcements" class="ann-banner-text" id="annBannerText"></a>
+    <button class="ann-banner-close" id="annBannerClose" aria-label="Dismiss announcement">
+        <i class="fas fa-times"></i>
+    </button>
+</div>
 
 <!-- ══ HERO ════════════════════════════════════════════════ -->
 <section class="hero" id="home">
@@ -94,6 +104,22 @@
     </div>
 </section>
 
+<!-- ══ ANNOUNCEMENTS ════════════════════════════════════════ -->
+<section class="announcements-section" id="announcements">
+    <div class="container">
+        <div class="ann-header reveal">
+            <div class="section-label">Latest Updates</div>
+            <h2 class="section-title">CRAC <span>Announcements</span></h2>
+            <p class="section-desc" style="margin:0 auto;text-align:center;">
+                Stay up to date with the latest news, events, and updates from the Cordillera Regional Apiculture Center.
+            </p>
+        </div>
+        <div id="annGrid" class="ann-grid">
+            <div class="ann-loading"><i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i> Loading announcements...</div>
+        </div>
+    </div>
+</section>
+                    
 <!-- ══ VISION MISSION GOAL ══════════════════════════════════ -->
 <section class="vmg-section" id="vmg">
     <div class="container">
@@ -254,21 +280,7 @@
 </section>
 
 
-<!-- ══ ANNOUNCEMENTS ════════════════════════════════════════ -->
-<section class="announcements-section" id="announcements">
-    <div class="container">
-        <div class="ann-header reveal">
-            <div class="section-label">Latest Updates</div>
-            <h2 class="section-title">CRAC <span>Announcements</span></h2>
-            <p class="section-desc" style="margin:0 auto;text-align:center;">
-                Stay up to date with the latest news, events, and updates from the Cordillera Regional Apiculture Center.
-            </p>
-        </div>
-        <div id="annGrid" class="ann-grid">
-            <div class="ann-loading"><i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i> Loading announcements...</div>
-        </div>
-    </div>
-</section>
+
 
 <!-- ══ HIVESENSE CTA ═════════════════════════════════════════ -->
 <section class="cta-section">
@@ -340,6 +352,7 @@
                 grid.innerHTML = '<div class="ann-empty"><i class="fas fa-bullhorn"></i><p>No announcements at this time. Check back later.</p></div>';
                 return;
             }
+            showAnnBanner(result.data);  
             grid.innerHTML = result.data.map(a => {
                 const type  = a.type || 'info';
                 const date  = new Date(a.created_at).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
@@ -372,6 +385,32 @@
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // ── Announcement banner ───────────────────────────────────
+    function showAnnBanner(list) {
+        // Newest announcement of any type (API returns newest first)
+        const a = list[0];
+        if (!a) return;
+
+        const type = typeIcon[a.type] ? a.type : 'info';
+
+        // Already dismissed this exact announcement in this tab?
+        if (sessionStorage.getItem('annBannerDismissed') === String(a.id)) return;
+
+        const banner = document.getElementById('annBanner');
+        banner.className = 'ann-banner ' + type;
+        document.getElementById('annBannerIcon').className =
+            'fas ann-banner-icon ' + typeIcon[type];
+        document.getElementById('annBannerText').innerHTML =
+            '<strong>' + escHtml(typeLabel[type]) + ':</strong> ' + escHtml(a.title);
+        banner.hidden = false;
+        document.body.classList.add('has-banner');
+
+        document.getElementById('annBannerClose').onclick = () => {
+            banner.hidden = true;
+            document.body.classList.remove('has-banner');
+            sessionStorage.setItem('annBannerDismissed', String(a.id));
+        };
+    }
     loadAnnouncements();
 
     // ── Scroll reveal ──

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In — HiveSense</title>
+    <link rel="icon" type="image/png" href="<?= ROOT ?>/public/assets/img/cordillera-apiculture-logo.png">    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= ROOT ?>/public/assets/css/login.css">
@@ -89,8 +90,7 @@
         </a>
 
         <p style="text-align:center;font-size:0.76rem;color:var(--text-dim);margin-top:18px;">
-            By signing in, you agree to HiveSense's
-            <a href="<?= ROOT ?>/terms" style="color:var(--green);font-weight:700;text-decoration:none;">Terms &amp; Conditions</a>.
+            <a href="<?= ROOT ?>/terms" style="color:var(--green);font-weight:700;text-decoration:none;">Terms of Service &amp; Privacy Policy</a>
         </p>
 
     </div>

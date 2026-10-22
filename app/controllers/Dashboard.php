@@ -575,6 +575,19 @@ class Dashboard extends Hive_Controller {
             $this->requireApiarist();
             $data = $this->getJsonBody();
             $noteId = $data['note_id'] ?? null;
+
+            $contentKeys = ['num_colonies','queen_species','queen_age','comb_frames_change',
+                'wax_foundation_change','feeding','colony_strength','brood_pattern_close',
+                'brood_pattern_open','brood_pattern_type','honey_store','pollen_store',
+                'temperament','treatment_date','chemical_brand','remarks'];
+            $hasContent = false;
+            foreach ($contentKeys as $k) {
+                if (isset($data[$k]) && trim((string)$data[$k]) !== '') { $hasContent = true; break; }
+            }
+            if (!$hasContent) {
+                $this->jsonResponse(['success' => false, 'message' => 'Fill in at least one field before saving.']);
+                return;
+            }
             
             if ($noteId) {
                 $result = $this->calendarNoteModel->updateNote($noteId, $data);

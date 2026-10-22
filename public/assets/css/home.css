@@ -678,10 +678,12 @@
             font-family: 'Playfair Display', serif;
             font-size: 1.15rem; font-weight: 700;
             color: var(--text); margin-bottom: 10px; line-height: 1.3;
+            overflow-wrap: anywhere;
         }
         .ann-card-text {
             font-size: 0.88rem; color: var(--text-muted);
             line-height: 1.7; white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
         .ann-card-footer {
             padding: 12px 24px;
@@ -859,4 +861,44 @@
             /* CTA */
             .cta-section { padding: 64px 24px; }
             .cta-btn { width: 100%; justify-content: center; }
+        }
+
+        /* ════════════════════════════════════
+        ANNOUNCEMENT BANNER
+        ════════════════════════════════════ */
+        .ann-banner {
+            position: fixed;
+            top: 72px; left: 0; right: 0;
+            z-index: 999;                 /* just under the navbar (1000) so the mobile menu overlaps it */
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 48px;
+            font-size: 0.85rem;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+        }
+        .ann-banner[hidden] { display: none; }
+        .ann-banner.info    { background: #2980b9;      color: #fff; }
+        .ann-banner.success { background: var(--green); color: #fff; }
+        .ann-banner.warning { background: var(--yellow); color: var(--green-deep); }
+        .ann-banner.alert   { background: #E05252;      color: #fff; }
+
+        .ann-banner-icon { flex-shrink: 0; }
+        .ann-banner-text {
+            flex: 1; min-width: 0;
+            color: inherit; text-decoration: none;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .ann-banner-text:hover { text-decoration: underline; }
+        .ann-banner-close {
+            flex-shrink: 0;
+            background: none; border: none; cursor: pointer;
+            color: inherit; opacity: 0.7; font-size: 0.9rem; padding: 4px;
+        }
+        .ann-banner-close:hover { opacity: 1; }
+
+        /* Push hero content down so the banner doesn't cover it */
+        body.has-banner .hero { padding-top: 164px; }
+
+        @media (max-width: 768px) {
+            .ann-banner { padding: 10px 16px; }
+            body.has-banner .hero { padding-top: 148px; }
         }

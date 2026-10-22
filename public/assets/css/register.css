@@ -232,3 +232,13 @@
             .form-panel { padding: 40px 24px; }
             .field-row { grid-template-columns: 1fr; }
         }
+
+        .terms-check {
+            display: flex; align-items: flex-start; gap: 10px;
+            margin: 4px 0 14px;
+            font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;
+            cursor: pointer;
+        }
+        .terms-check input { margin-top: 3px; accent-color: var(--green); flex-shrink: 0; }
+        .terms-check a { color: var(--green); font-weight: 700; text-decoration: none; }
+        .terms-check a:hover { text-decoration: underline; }

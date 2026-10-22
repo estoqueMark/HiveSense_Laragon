@@ -626,6 +626,9 @@ async function selectCalDay(ds) {
 
     $('#notePaneEmpty').hide();
     $('#noteEditor').show();
+    if (window.innerWidth <= 900) {
+        document.getElementById('noteEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 
     const label = new Date(ds + 'T00:00:00').toLocaleDateString(undefined, {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -816,6 +819,15 @@ async function saveCurrentNote() {
         chemical_brand: $('#insp_chemical_brand').val() || null,
         remarks: $('#insp_remarks').val() || null
     };
+
+    const contentKeys = ['num_colonies','queen_species','queen_age','comb_frames_change',
+        'wax_foundation_change','feeding','colony_strength','brood_pattern_close',
+        'brood_pattern_open','brood_pattern_type','honey_store','pollen_store',
+        'temperament','treatment_date','chemical_brand','remarks'];
+    if (!contentKeys.some(k => payload[k] !== null && payload[k] !== '')) {
+        showToast('Fill in at least one field before saving.', 'error');
+        return;
+    }
     
     try {
         const response = await fetch(BASE_URL + '/api/note_save', {
@@ -942,6 +954,8 @@ function startEditHive(id, name, location) {
     $('#hiveFormTitle').html('<i class="fas fa-save"></i> Edit Hive');
     $('#hiveFormBtnText').text('Save Changes');
     $('#hiveCancelEdit').show();
+    $('#hiveManagerOverlay .modal-body')[0].scrollTo({ top: 0, behavior: 'smooth' });
+    $('#hiveNameInput').trigger('focus');
 }
 
 function resetHiveForm() {
@@ -1214,6 +1228,8 @@ function startEditUser(id, username, email, fullName, role) {
     $('#userFormTitle').html('<i class="fas fa-save"></i> Edit User');
     $('#userFormBtnText').text('Save Changes');
     $('#userCancelEdit').show();
+    $('#userManagerOverlay .modal-body')[0].scrollTo({ top: 0, behavior: 'smooth' });
+    $('#userUsernameInput').trigger('focus');
 }
 function resetUserForm() {
     $('#editUserId').val('');

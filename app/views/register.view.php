@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create Account — HiveSense</title>
+    <link rel="icon" type="image/png" href="<?= ROOT ?>/public/assets/img/cordillera-apiculture-logo.png">    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= ROOT ?>/public/assets/css/register.css">
@@ -101,7 +102,7 @@
                     <input type="password" id="password" name="password"
                            placeholder="Min. 8 characters"
                            autocomplete="new-password" required
-                           oninput="checkStrength(this.value)">
+                           oninput="checkStrength(this.value); checkMatch()">
                     <i class="fas fa-lock fi"></i>
                     <button type="button" class="toggle-pw" onclick="togglePw('password','pwIcon1')">
                         <i class="fas fa-eye" id="pwIcon1"></i>
@@ -128,12 +129,19 @@
                 <div class="field-hint" id="matchHint"></div>
             </div>
 
+            <label class="terms-check">
+                <input type="checkbox" name="agree_terms" id="agreeTerms" value="1" required>
+                <span>
+                    I have read and agree to the
+                    <a href="<?= ROOT ?>/terms?from=register" target="_blank" rel="noopener">Terms of Service &amp; Privacy Policy</a>.
+                </span>
+            </label>
+
             <button type="submit" class="btn-submit" id="submitBtn">
                 <i class="fas fa-user-plus"></i> <span id="submitBtnText">Create Account</span>
             </button>
 
             <p class="terms-note">
-                By registering, you agree that your account is for CRAC / HiveSense use only.<br>
                 New accounts are created as <strong>Viewer</strong> — an admin can grant further access.
             </p>
         </form>
