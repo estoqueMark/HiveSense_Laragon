@@ -219,11 +219,12 @@
                     </div>
                 </div>
                 <div class="co2-scale-card">
-                    <div class="co2-scale-title"><i class="fas fa-info-circle"></i> CO₂ Level Guide</div>
-                    <div class="co2-scale-row"><span class="co2-dot good"></span><span class="co2-scale-range">300–700 ppm</span><span class="co2-scale-label">Good — Normal hive</span></div>
-                    <div class="co2-scale-row"><span class="co2-dot moderate"></span><span class="co2-scale-range">700–1500 ppm</span><span class="co2-scale-label">Moderate — Monitor closely</span></div>
-                    <div class="co2-scale-row"><span class="co2-dot high"></span><span class="co2-scale-range">1500–3000 ppm</span><span class="co2-scale-label">High — Check ventilation</span></div>
-                    <div class="co2-scale-row"><span class="co2-dot danger"></span><span class="co2-scale-range">&gt;3000 ppm</span><span class="co2-scale-label">Critical — Act immediately</span></div>
+                    <div class="co2-scale-title"><i class="fas fa-info-circle"></i> CO₂ Reading Guide</div>
+                    <div class="co2-scale-row"><span class="co2-dot low"></span><span class="co2-scale-range">~450–1,000 ppm</span><span class="co2-scale-label">Daytime low — foragers out</span></div>
+                    <div class="co2-scale-row"><span class="co2-dot typical"></span><span class="co2-scale-range">~1,000–5,000 ppm</span><span class="co2-scale-label">Typical for an active colony</span></div>
+                    <div class="co2-scale-row"><span class="co2-dot peak"></span><span class="co2-scale-range">5,000+ ppm</span><span class="co2-scale-label">Night peaks — normal</span></div>
+                    <div class="co2-scale-row"><span class="co2-dot flat"></span><span class="co2-scale-range">No daily swing</span><span class="co2-scale-label">Flat near open air — inspect</span></div>
+                    <div class="co2-scale-note">Estimated by an MQ-135 sensor. Watch the daily pattern, not the exact number.</div>
                 </div>
             </div>
         </div>
@@ -539,10 +540,19 @@
 
                     <div class="form-group">
                         <label><i class="fas fa-utensils"></i> Feeding</label>
-                        <select id="insp_feeding">
+                        <select id="insp_feeding" onchange="toggleFeedType()">
                             <option value="">Not recorded</option>
                             <option value="1">Yes</option>
                             <option value="0">No</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="feedTypeWrap" style="display:none;">
+                        <label>What was fed?</label>
+                        <select id="insp_feed_type">
+                            <option value="">Select type</option>
+                            <option value="pollen_patty">Pollen Patty</option>
+                            <option value="sugar_syrup">Sugar Syrup</option>
                         </select>
                     </div>
                     

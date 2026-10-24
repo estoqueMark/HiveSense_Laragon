@@ -30,6 +30,20 @@ class CalendarNote_Model extends Base_Model {
         return array_column($rows, 'note_date');
     }
 
+
+    public function getLatestNoteBefore(string $date, int $sensorId): ?array {
+        $stmt = $this->connection->prepare(
+            'SELECT num_colonies, queen_species, queen_age
+            FROM hs_calendar_notes
+            WHERE sensor_id = ? AND note_date < ?
+            ORDER BY note_date DESC
+            LIMIT 1'
+        );
+        $stmt->bind_param("is", $sensorId, $date);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_assoc() ?: null;
+    }
+
     public function getNoteDatesForHive(int $sensorId): array {
         $stmt = $this->connection->prepare(
             'SELECT note_id, DATE_FORMAT(note_date, "%Y-%m-%d") AS note_date
@@ -99,6 +113,7 @@ class CalendarNote_Model extends Base_Model {
         $comb_frames_change      = ($data['comb_frames_change']      !== null && $data['comb_frames_change']      !== '') ? (string)(int)$data['comb_frames_change']      : null;
         $wax_foundation_change   = ($data['wax_foundation_change']   !== null && $data['wax_foundation_change']   !== '') ? (string)(int)$data['wax_foundation_change']   : null;
         $feeding                 = ($data['feeding']                 !== null && $data['feeding']                 !== '') ? (string)(int)$data['feeding']                 : null;
+        $feed_type = (($data['feed_type'] ?? '') !== '' && $feeding === '1' && in_array($data['feed_type'], ['pollen_patty','sugar_syrup'], true)) ? $data['feed_type'] : null;
         $colony_strength         = ($data['colony_strength']         !== null && $data['colony_strength']         !== '') ? (string)(int)$data['colony_strength']         : null;
         $brood_pattern_close     = ($data['brood_pattern_close']     !== null && $data['brood_pattern_close']     !== '') ? (string)(int)$data['brood_pattern_close']     : null;
         $brood_pattern_open      = ($data['brood_pattern_open']      !== null && $data['brood_pattern_open']      !== '') ? (string)(int)$data['brood_pattern_open']      : null;
@@ -113,18 +128,18 @@ class CalendarNote_Model extends Base_Model {
         $stmt = $this->connection->prepare(
             'INSERT INTO hs_calendar_notes
                (note_date, sensor_id, num_colonies, queen_species, queen_age,
-                comb_frames_change, wax_foundation_change, feeding,
+                comb_frames_change, wax_foundation_change, feeding, feed_type,
                 colony_strength, brood_pattern_close, brood_pattern_open, brood_pattern_type,
                 honey_store, pollen_store, temperament,
                 treatment_date, chemical_brand, remarks,
                 created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())'
         );
 
         $stmt->bind_param(
-            str_repeat('s', 18),
+            str_repeat('s', 19),
             $note_date, $sensor_id, $num_colonies, $queen_species, $queen_age,
-            $comb_frames_change, $wax_foundation_change, $feeding,
+            $comb_frames_change, $wax_foundation_change, $feeding, $feed_type,
             $colony_strength, $brood_pattern_close, $brood_pattern_open, $brood_pattern_type,
             $honey_store, $pollen_store, $temperament,
             $treatment_date, $chemical_brand, $remarks
@@ -142,6 +157,7 @@ class CalendarNote_Model extends Base_Model {
         $comb_frames_change      = ($data['comb_frames_change']      !== null && $data['comb_frames_change']      !== '') ? (string)(int)$data['comb_frames_change']      : null;
         $wax_foundation_change   = ($data['wax_foundation_change']   !== null && $data['wax_foundation_change']   !== '') ? (string)(int)$data['wax_foundation_change']   : null;
         $feeding                 = ($data['feeding']                 !== null && $data['feeding']                 !== '') ? (string)(int)$data['feeding']                 : null;
+        $feed_type = (($data['feed_type'] ?? '') !== '' && $feeding === '1' && in_array($data['feed_type'], ['pollen_patty','sugar_syrup'], true)) ? $data['feed_type'] : null;
         $colony_strength         = ($data['colony_strength']         !== null && $data['colony_strength']         !== '') ? (string)(int)$data['colony_strength']         : null;
         $brood_pattern_close     = ($data['brood_pattern_close']     !== null && $data['brood_pattern_close']     !== '') ? (string)(int)$data['brood_pattern_close']     : null;
         $brood_pattern_open      = ($data['brood_pattern_open']      !== null && $data['brood_pattern_open']      !== '') ? (string)(int)$data['brood_pattern_open']      : null;
@@ -156,7 +172,7 @@ class CalendarNote_Model extends Base_Model {
         $stmt = $this->connection->prepare(
             'UPDATE hs_calendar_notes SET
                sensor_id = ?, num_colonies = ?, queen_species = ?, queen_age = ?,
-               comb_frames_change = ?, wax_foundation_change = ?, feeding = ?,
+               comb_frames_change = ?, wax_foundation_change = ?, feeding = ?, feed_type = ?,
                colony_strength = ?, brood_pattern_close = ?, brood_pattern_open = ?, brood_pattern_type = ?,
                honey_store = ?, pollen_store = ?, temperament = ?,
                treatment_date = ?, chemical_brand = ?, remarks = ?,
@@ -165,9 +181,9 @@ class CalendarNote_Model extends Base_Model {
         );
 
         $stmt->bind_param(
-            str_repeat('s', 17) . 'i',
+            str_repeat('s', 18) . 'i',
             $sensor_id, $num_colonies, $queen_species, $queen_age,
-            $comb_frames_change, $wax_foundation_change, $feeding,
+            $comb_frames_change, $wax_foundation_change, $feeding, $feed_type,
             $colony_strength, $brood_pattern_close, $brood_pattern_open, $brood_pattern_type,
             $honey_store, $pollen_store, $temperament,
             $treatment_date, $chemical_brand, $remarks,
@@ -175,6 +191,18 @@ class CalendarNote_Model extends Base_Model {
         );
 
         return $stmt->execute();
+    }
+
+    public function getPreviousNoteForHive(int $sensorId, string $beforeDate): ?array {
+        $stmt = $this->connection->prepare(
+            'SELECT num_colonies, queen_species, queen_age, feeding, feed_type
+             FROM hs_calendar_notes
+             WHERE sensor_id = ? AND note_date < ?
+             ORDER BY note_date DESC LIMIT 1'
+        );
+        $stmt->bind_param("is", $sensorId, $beforeDate);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_assoc() ?: null;
     }
 
     public function deleteNote(int $id): bool {

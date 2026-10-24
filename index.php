@@ -195,6 +195,7 @@ elseif ($seg0 === 'api' && $seg1 !== '') {
         case 'note_by_date':          $dash->getNoteByDate();        break;
         case 'note_export':           $dash->exportNotesCsv();       break;
         case 'hive_note_dates':       $dash->getHiveNoteDates();     break;
+        case 'hive_last_note':        $dash->getLastNoteDefaults();  break;
 		case 'note_by_id':            $dash->getNoteById();          break;    
         case 'note_save':             $dash->saveNote();             break;
         case 'note_delete':           $dash->deleteNote();           break;

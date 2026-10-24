@@ -121,18 +121,11 @@ async function loadCurrentData() {
                 $('#humidityStatusBadge').text('—').removeClass('dry optimal humid very-humid');
             }
 
-            // CO2
+            // CO2 — informational only (MQ-135 estimate); no good/critical judgement
             const co2 = d.co2 ?? null;
             if (co2 !== null && co2 !== undefined) {
                 $('#currentCo2').text(parseFloat(co2).toFixed(1));
-                // Status badge
-                const badge = $('#co2StatusBadge');
-                let cls = '', label = '';
-                if      (co2 <= 700)  { cls = 'good';     label = 'Good'; }
-                else if (co2 <= 1500) { cls = 'moderate'; label = 'Moderate'; }
-                else if (co2 <= 3000) { cls = 'high';     label = 'High'; }
-                else                  { cls = 'danger';   label = 'Critical'; }
-                badge.text(label).removeClass('good moderate high danger').addClass(cls);
+                $('#co2StatusBadge').text('Trend only').removeClass('good moderate high danger');
             } else {
                 $('#currentCo2').text('--');
                 $('#co2StatusBadge').text('—').removeClass('good moderate high danger');
@@ -653,6 +646,12 @@ async function selectCalDay(ds) {
 
         if (result.success && result.data && result.data.note_id) {
             populateInspectionForm(result.data);
+        } else if (!isFuture) {
+            await prefillFromLastNote(ds);
+        } else if (result.prefill && !isFuture) {
+            $('#insp_num_colonies').val(result.prefill.num_colonies ?? '');
+            $('#insp_queen_species').val(result.prefill.queen_species ?? '');
+            $('#insp_queen_age').val(result.prefill.queen_age ?? '');
         }
 
         setFormReadOnly(isFuture);
@@ -688,6 +687,8 @@ function clearInspectionForm() {
     $('#insp_comb_frames_change').val('');
     $('#insp_wax_foundation_change').val('');
     $('#insp_feeding').val('');
+    $('#insp_feed_type').val('');
+    toggleFeedType();
     $('#insp_brood_pattern_type').val('');
     $('#insp_treatment_date').val('');
     $('#insp_chemical_brand').val('');
@@ -708,6 +709,10 @@ function populateInspectionForm(note) {
     $('#insp_comb_frames_change').val(note.comb_frames_change ?? '');
     $('#insp_wax_foundation_change').val(note.wax_foundation_change ?? '');
     $('#insp_feeding').val(note.feeding !== null && note.feeding !== undefined ? String(note.feeding) : '');
+    $('#insp_feed_type').val(note.feed_type ?? '');
+    toggleFeedType();
+    $('#insp_feed_type').val(note.feed_type ?? '');
+    toggleFeedType();
     $('#insp_brood_pattern_type').val(note.brood_pattern_type ?? '');
     $('#insp_temperament').val(note.temperament ?? '');
     $('#insp_treatment_date').val(note.treatment_date ?? '');
@@ -808,6 +813,7 @@ async function saveCurrentNote() {
         comb_frames_change: $('#insp_comb_frames_change').val() !== '' ? $('#insp_comb_frames_change').val() : null,
         wax_foundation_change: $('#insp_wax_foundation_change').val() !== '' ? $('#insp_wax_foundation_change').val() : null,
         feeding: $('#insp_feeding').val() !== '' ? $('#insp_feeding').val() : null,
+        feed_type: ($('#insp_feeding').val() === '1' && $('#insp_feed_type').val()) ? $('#insp_feed_type').val() : null,
         colony_strength: $('#insp_colony_strength').val() || null,
         brood_pattern_close: $('#insp_brood_pattern_close').val() || null,
         brood_pattern_open: $('#insp_brood_pattern_open').val() || null,
@@ -1530,6 +1536,15 @@ function notifyAlert(a) {
     showToast(msg, a.severity === 'critical' ? 'error' : 'info');
 }
 
+function alertIcon(type) {
+    return {
+        temperature: 'fa-thermometer-half',
+        humidity:    'fa-tint',
+        co2:         'fa-cloud',          // kept so old CO₂ alerts in history still show an icon
+        food:        'fa-utensils'
+    }[type] || 'fa-exclamation-circle';
+}
+
 function renderAlertPanel(alerts) {
     const badge = $('#alertBadge');
     const list  = $('#alertList');
@@ -1549,8 +1564,7 @@ function renderAlertPanel(alerts) {
 
     let html = '';
     alerts.forEach(a => {
-        const icon = a.alert_type === 'temperature' ? 'fa-thermometer-half'
-                   : a.alert_type === 'humidity'    ? 'fa-tint' : 'fa-cloud';
+        const icon = alertIcon(a.alert_type);
         html += `<div class="alert-item ${a.severity}">
             <div class="alert-item-icon"><i class="fas ${icon}"></i></div>
             <div class="alert-item-body">
@@ -1616,8 +1630,7 @@ async function loadAlertHistory() {
         $('#alertHistoryCount').text(`${result.data.length} alert${result.data.length !== 1 ? 's' : ''}`);
         let html = '';
         result.data.forEach(a => {
-            const icon = a.alert_type === 'temperature' ? 'fa-thermometer-half'
-                       : a.alert_type === 'humidity'    ? 'fa-tint' : 'fa-cloud';
+            const icon = alertIcon(a.alert_type);
             const statusBadge = a.status === 'active'
                 ? '<span class="ahi-status active">Active</span>'
                 : '<span class="ahi-status resolved">Resolved</span>';
@@ -1648,6 +1661,7 @@ const COMPARE_FIELDS = [
     { key: 'comb_frames_change', label: 'Comb Frames (+/-)' },
     { key: 'wax_foundation_change', label: 'Wax Foundation (+/-)' },
     { key: 'feeding', label: 'Feeding', format: v => (v === '1' || v === 1) ? 'Yes' : ((v === '0' || v === 0) ? 'No' : null) },
+    { key: 'feed_type', label: 'Feed Type', format: v => v === 'pollen_patty' ? 'Pollen Patty' : (v === 'sugar_syrup' ? 'Sugar Syrup' : null) },   
     { key: 'colony_strength', label: 'Colony Strength' },
     { key: 'brood_pattern_open', label: 'Open Brood' },
     { key: 'brood_pattern_close', label: 'Close Brood' },
@@ -1790,4 +1804,27 @@ function renderCompareTable() {
             $('#foodPlacedBtn').prop('disabled', false);
             showToast('Error: ' + e.message, 'error');
         }
+    }
+    
+    function toggleFeedType() {
+        const yes = $('#insp_feeding').val() === '1';
+        $('#feedTypeWrap').toggle(yes);
+        if (!yes) $('#insp_feed_type').val('');
+    }
+
+    async function prefillFromLastNote(ds) {
+        const hiveId = $('#insp_hive_id').val();
+        if (!hiveId) return;
+        try {
+            const res = await fetch(`${BASE_URL}/api/hive_last_note?sensor_id=${hiveId}&date=${ds}`);
+            const result = await res.json();
+            const n = result.success ? result.data : null;
+            if (!n) return;
+            $('#insp_num_colonies').val(n.num_colonies ?? '');
+            $('#insp_queen_species').val(n.queen_species ?? '');
+            $('#insp_queen_age').val(n.queen_age ?? '');
+            $('#insp_feeding').val(n.feeding != null ? String(n.feeding) : '');
+            $('#insp_feed_type').val(n.feed_type ?? '');
+            toggleFeedType();
+        } catch (e) {}
     }

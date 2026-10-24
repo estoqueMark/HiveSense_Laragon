@@ -189,6 +189,11 @@
         .co2-dot.moderate { background: #eab308; }
         .co2-dot.high     { background: #f97316; }
         .co2-dot.danger   { background: #ef4444; }
+        .co2-dot.low     { background: #4facfe; }
+        .co2-dot.typical { background: #22c55e; }
+        .co2-dot.peak    { background: #eab308; }
+        .co2-dot.flat    { background: #94a3b8; }
+        .co2-scale-note  { margin-top: 10px; font-size: 0.7rem; color: var(--text-dim); line-height: 1.4; }
         .co2-scale-range { color: var(--text-muted); font-weight: 600; white-space: nowrap; min-width: 90px; }
         .co2-scale-label { color: var(--text-dim); }
 

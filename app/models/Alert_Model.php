@@ -8,8 +8,6 @@ class Alert_Model extends Base_Model {
     const TEMP_HOT        = 38;
     const HUM_DRY          = 50;
     const HUM_VERY_HUMID = 85;
-    const CO2_HIGH        = 1500;
-    const CO2_DANGER      = 3000;
     const FOOD_FULL_PCT   = 75;   // >= 75% of recorded full weight = Full
     const FOOD_HALF_PCT   = 40;   // >= 40% = Half full
     const FOOD_EMPTY_PCT  = 10;   // <= 10% = Empty
@@ -43,25 +41,24 @@ class Alert_Model extends Base_Model {
                 'message' => "Humidity spiked to {$humidity}% — act now to prevent mold."];
         }
 
-        if ($co2 !== null) {
-            if ($co2 > self::CO2_DANGER) {
-                $triggered[] = ['type' => 'co2', 'severity' => 'critical', 'value' => $co2,
-                    'message' => "CO₂ reached {$co2} ppm — critical, act immediately."];
-            } elseif ($co2 > self::CO2_HIGH) {
-                $triggered[] = ['type' => 'co2', 'severity' => 'warning', 'value' => $co2,
-                    'message' => "CO₂ reached {$co2} ppm — check ventilation."];
-            }
-        }
+        // CO₂ is shown on the dashboard as an informational trend only. Healthy colonies cycle
+        // between ~500 ppm (day) and 5,000+ ppm (night), so no fixed limit is used for alerts.
 
-        if ($foodLevel !== null) {
-            $foodLow = FOOD_MAX_G * 0.25;   // low alert at 25% of a full feeder
-            $g = round($foodLevel);
-            if ($foodLevel <= 0) {
-                $triggered[] = ['type' => 'food', 'severity' => 'critical', 'value' => $foodLevel,
-                    'message' => "Food store is empty ({$g} g) — feed the colony now."];
-            } elseif ($foodLevel <= $foodLow) {
-                $triggered[] = ['type' => 'food', 'severity' => 'warning', 'value' => $foodLevel,
-                    'message' => "Food store is low ({$g} g) — plan feeding soon."];
+        if ($foodLevel !== null && $sensorId) {
+            // Judge against the weight the beekeeper recorded as "full" (Food placed button).
+            // No recorded reference yet = no food alert, same as the dashboard (no status shown).
+            $ref  = $this->getFoodRow($sensorId);
+            $full = ($ref && $ref['full_weight_g'] !== null) ? (float)$ref['full_weight_g'] : 0;
+            if ($full > 0) {
+                $state = self::foodState($foodLevel, $full);
+                $g = round($foodLevel);
+                if ($state['key'] === 'empty') {
+                    $triggered[] = ['type' => 'food', 'severity' => 'critical', 'value' => $foodLevel,
+                        'message' => "Food store is empty ({$g} g, {$state['pct']}% of full) — feed the colony now."];
+                } elseif ($state['key'] === 'low') {
+                    $triggered[] = ['type' => 'food', 'severity' => 'warning', 'value' => $foodLevel,
+                        'message' => "Food store is low ({$g} g, {$state['pct']}% of full) — plan feeding soon."];
+                }
             }
         }
 

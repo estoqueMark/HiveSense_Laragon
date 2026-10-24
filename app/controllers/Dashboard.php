@@ -408,21 +408,15 @@ class Dashboard extends Hive_Controller {
         if ($v < 85) return $YELLOW;
         return $RED;
     };
-    $co2Color = function ($v) use ($RED, $ORANGE, $YELLOW, $GREEN) {
-        if ($v === null || $v === '') return null;
-        $v = (float)$v;
-        if ($v <= 700)  return $GREEN;
-        if ($v <= 1500) return $YELLOW;
-        if ($v <= 3000) return $ORANGE;
-        return $RED;
-    };
-    $foodColor = function ($v) use ($RED, $ORANGE, $YELLOW, $GREEN) {
-        if ($v === null || $v === '') return null;
-        $pct = ((float)$v / FOOD_MAX_G) * 100;
-        if ($pct >= 62.5) return $GREEN;
-        if ($pct >= 37.5) return $YELLOW;
-        if ($pct >= 12.5) return $ORANGE;
-        return $RED;
+    // CO2 is an uncalibrated MQ-135 estimate, so it is left uncolored
+    $co2Color = function ($v) { return null; };
+    // Food colors follow the same bands as the dashboard, relative to the hive's recorded full weight
+    $foodRow = $this->alertModel->getFoodRow($sensorId);
+    $fullG   = ($foodRow && $foodRow['full_weight_g'] !== null) ? (float)$foodRow['full_weight_g'] : 0;
+    $foodColor = function ($v) use ($RED, $ORANGE, $YELLOW, $GREEN, $fullG) {
+        if ($v === null || $v === '' || $fullG <= 0) return null;
+        $key = Alert_Model::foodState((float)$v, $fullG)['key'];
+        return ['full' => $GREEN, 'moderate' => $YELLOW, 'low' => $ORANGE, 'empty' => $RED][$key];
     };
     $paint = function (string $cell, ?string $rgb) use ($sheet) {
         if ($rgb) $sheet->getStyle($cell)->getFill()->setFillType('solid')->getStartColor()->setRGB($rgb);
@@ -512,14 +506,21 @@ class Dashboard extends Hive_Controller {
         [$BLUE,   'Cold (temp below 32 °C)'],
         [$GREEN,  'Optimal / Good / Well stocked'],
         [$YELLOW, 'Warm / Humid / Moderate'],
-        [$ORANGE, 'Dry / High CO2 / Low food'],
-        [$RED,    'Hot / Very humid / Critical CO2 / Empty'],
+        [$ORANGE, 'Dry / Low food'],
+        [$RED,    'Hot / Very humid / Empty'],
     ];
     foreach ($legend as $i => [$rgb, $text]) {
         $cell = 'A' . ($l + 1 + $i);
         $sheet->setCellValue($cell, $text);
         $paint($cell, $rgb);
     }
+
+    // note on what the food colors are relative to
+    $noteRow = $l + 7;
+    $sheet->setCellValue("A$noteRow", $fullG > 0
+        ? 'Food colors are relative to the recorded full weight (' . round($fullG) . ' g).'
+        : 'Food colors are off: no full weight has been recorded for this hive yet.');
+    $sheet->mergeCells("A$noteRow:E$noteRow");  
 
     if (ob_get_length()) ob_end_clean();
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -534,7 +535,11 @@ class Dashboard extends Hive_Controller {
             $date = $_GET['date'] ?? date('Y-m-d');
             $sensorId = isset($_GET['sensor_id']) ? (int)$_GET['sensor_id'] : null;
             $note = $this->calendarNoteModel->getNoteByDateAndHive($date, $sensorId);
-            $this->jsonResponse(['success' => true, 'data' => $note]);
+            $prefill = null;
+            if (!$note && $sensorId) {
+                $prefill = $this->calendarNoteModel->getLatestNoteBefore($date, $sensorId);
+            }
+            $this->jsonResponse(['success' => true, 'data' => $note, 'prefill' => $prefill]);
         } catch (Exception $e) {
             $this->jsonResponse(['success' => true, 'data' => null]);
         }
@@ -552,6 +557,19 @@ class Dashboard extends Hive_Controller {
             $this->jsonResponse(['success' => true, 'data' => $dates]);
         } catch (Exception $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+
+    public function getLastNoteDefaults() {
+        try {
+            $this->requireApiarist();
+            $sensorId = (int)($_GET['sensor_id'] ?? 0);
+            $date     = $_GET['date'] ?? date('Y-m-d');
+            $note = $sensorId ? $this->calendarNoteModel->getPreviousNoteForHive($sensorId, $date) : null;
+            $this->jsonResponse(['success' => true, 'data' => $note]);
+        } catch (Exception $e) {
+            $this->jsonResponse(['success' => true, 'data' => null]);
         }
     }
 
