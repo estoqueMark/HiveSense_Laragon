@@ -233,6 +233,7 @@
             .field-row { grid-template-columns: 1fr; }
         }
 
+
         .terms-check {
             display: flex; align-items: flex-start; gap: 10px;
             margin: 4px 0 14px;

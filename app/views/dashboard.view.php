@@ -241,28 +241,28 @@
         <div class="food-section">
             <div class="food-section-label">
                 <i class="fas fa-utensils"></i>
-                Food Store Monitor
+                Supplementary Food Monitor
             </div>
             <div class="food-grid">
                 <div class="reading-card food-current">
                     <div class="card-icon food-icon"><i class="fas fa-jar"></i></div>
                     <div class="card-content">
-                        <span class="card-label">Current Food Weight</span>
+                        <span class="card-label">Supplementary Food Level</span>
                         <div><span class="card-value" id="currentFood">--</span><span class="card-unit">g</span></div>
-                        <span class="card-footer" id="foodRefText">Press "Food placed" after putting food on the scale</span>
+                        <span class="card-footer" id="foodRefText">Press "Supplementary food placed" after putting the food on the scale</span>
                         <span class="card-footer" id="foodTime">--</span>
                     </div>
                     <div class="food-status-badge" id="foodStatusBadge">—</div>
                 </div>
                 <div class="food-scale-card">
-                    <div class="food-scale-title"><i class="fas fa-info-circle"></i> Food Level Guide</div>
+                    <div class="food-scale-title"><i class="fas fa-info-circle"></i> Supplementary Food Level Guide</div>
                     <div class="food-scale-row"><span class="food-dot full"></span><span class="food-scale-range" id="foodRangeFull">--</span><span class="food-scale-label">Full — Well stocked</span></div>
                     <div class="food-scale-row"><span class="food-dot moderate"></span><span class="food-scale-range" id="foodRangeHalf">--</span><span class="food-scale-label">Half full — Plan feeding</span></div>
                     <div class="food-scale-row"><span class="food-dot low"></span><span class="food-scale-range" id="foodRangeLow">--</span><span class="food-scale-label">Low — Feed soon</span></div>
                     <div class="food-scale-row"><span class="food-dot empty"></span><span class="food-scale-range" id="foodRangeEmpty">--</span><span class="food-scale-label">Empty — Feed now</span></div>
                     <?php if (in_array($_SESSION['role'] ?? '', ['admin','apiarist'])): ?>
                     <button type="button" class="food-placed-btn" id="foodPlacedBtn" onclick="markFoodPlaced()">
-                        <i class="fas fa-utensils"></i> Food placed
+                        <i class="fas fa-utensils"></i> Supplementary food placed
                     </button>
                     <div class="food-pending-note" id="foodPendingNote">Waiting for the next scale reading to record the full amount…</div>
                     <?php endif; ?>
@@ -298,7 +298,7 @@
                 <i class="fas fa-circle" style="color:#22c55e;font-size:0.6rem;vertical-align:middle;"></i>
                 Showing every individual reading — real-time monitoring view
             </div>
-            <div class="chart-container">
+            <div class="chart-container" style="position:relative;">
                 <canvas id="historyChart"></canvas>
                 <div id="chartEmpty" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.9rem;">
                     <span><i class="fas fa-chart-line" style="margin-right:8px;opacity:0.5;"></i>No readings for this hive or period.</span>
@@ -325,7 +325,7 @@
                 <div class="table-toolbar">
                     <span class="table-count" id="readingsCount">—</span>
                     <button class="btn-secondary" style="padding:7px 14px;" onclick="exportDataLog('readings')">
-                        <i class="fas fa-file-csv"></i> Export CSV
+                        <i class="fas fa-file-excel"></i> Export Excel
                     </button>
                     <select class="table-filter" id="readingsHourFilter"
                             onchange="$('#readingsDateFrom, #readingsDateTo').val(''); loadReadingsTable()">
@@ -348,7 +348,7 @@
                                 <th>Temperature</th>
                                 <th>Humidity</th>
                                 <th>CO₂</th>
-                                <th>Food</th>
+                                <th>Supplementary Food</th>
                                 <th>Temp Status</th>
                             </tr>
                         </thead>
@@ -369,7 +369,7 @@
                 <div class="table-toolbar">
                     <span class="table-count" id="summaryCount">—</span>
                     <button class="btn-secondary" style="padding:7px 14px;" onclick="exportDataLog('summary')">
-                        <i class="fas fa-file-csv"></i> Export CSV
+                        <i class="fas fa-file-excel"></i> Export Excel
                     </button>
                 </div>
                 <div class="table-container" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
@@ -380,7 +380,7 @@
                                 <th>Avg Temp</th><th>Min Temp</th><th>Max Temp</th>
                                 <th>Avg Humidity</th><th>Min Humidity</th><th>Max Humidity</th>
                                 <th>Avg CO₂</th><th>Min CO₂</th><th>Max CO₂</th>
-                                <th>Food (End of Day)</th>
+                                <th>Supplementary Food (End of Day)</th>
                                 <th>Readings</th>
                             </tr>
                         </thead>

@@ -43,10 +43,13 @@ class Dashboard extends Hive_Controller {
                 $total  = $this->measurementModel->countReadingsByRange($from, $to, $sensorId);
                 $result = $this->measurementModel->getReadingsByRange($from, $to, 1000, $sensorId);
             } else {
-                $result = $this->measurementModel->getReadings($hours, $limit, $sensorId);
+                $bucket = isset($_GET['bucket']) ? (int)$_GET['bucket'] : 0;
+                $result = $bucket >= 30
+                    ? $this->measurementModel->getReadingsBucketed($hours, $bucket, $sensorId)
+                    : $this->measurementModel->getReadings($hours, $limit, $sensorId);
             }
             $this->jsonResponse(['success' => true, 'data' => $result, 'total' => $total]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -110,10 +113,10 @@ class Dashboard extends Hive_Controller {
             $this->alertModel->requestFoodReference($sensorId, (int)($_SESSION['user_id'] ?? 0));
             $this->jsonResponse([
                 'success' => true,
-                'message' => 'Food placed. Keep it still on the scale: the next reading after about '
+                'message' => 'Supplementary food placed. Keep it still on the scale: the next reading after about '
                            . Alert_Model::FOOD_SETTLE_SEC . ' seconds is recorded as the full amount.',
             ]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -124,7 +127,7 @@ class Dashboard extends Hive_Controller {
             $sensorId = isset($_GET['sensor_id']) ? (int)$_GET['sensor_id'] : null;
             $result = $this->measurementModel->getHistory($days, $sensorId);
             $this->jsonResponse(['success' => true, 'data' => $result]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -135,16 +138,17 @@ class Dashboard extends Hive_Controller {
             $sensorId = isset($_GET['sensor_id']) ? (int)$_GET['sensor_id'] : null;
             $result = $this->measurementModel->getDailyStats($limit, $sensorId);
             $this->jsonResponse(['success' => true, 'data' => $result]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
 
     public function getAllHives() {
         try {
+            $this->requireApiarist();
             $hives = $this->hiveModel->getAllHives();
             $this->jsonResponse(['success' => true, 'data' => $hives]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => true, 'data' => []]);
         }
     }
@@ -153,7 +157,7 @@ class Dashboard extends Hive_Controller {
         try {
             $hives = $this->hiveModel->getActiveHives();
             $this->jsonResponse(['success' => true, 'data' => $hives]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => true, 'data' => []]);
         }
     }
@@ -176,7 +180,7 @@ class Dashboard extends Hive_Controller {
 
             $id = $this->hiveModel->createHive($hiveName, $location);
             $this->jsonResponse(['success' => true, 'sensor_id' => $id]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -200,7 +204,7 @@ class Dashboard extends Hive_Controller {
 
             $result = $this->hiveModel->updateHive($id, $hiveName, $location);
             $this->jsonResponse(['success' => $result]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -218,7 +222,7 @@ class Dashboard extends Hive_Controller {
             
             $result = $this->hiveModel->deleteHive($id);
             $this->jsonResponse(['success' => $result]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -236,7 +240,7 @@ class Dashboard extends Hive_Controller {
             
             $result = $this->hiveModel->restoreHive($id);
             $this->jsonResponse(['success' => $result]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -252,9 +256,14 @@ class Dashboard extends Hive_Controller {
                 return;
             }
             
+            $hive = $this->hiveModel->getHiveById($id);
+            if ($hive && (int)$hive['is_active'] === 1) {
+                $this->jsonResponse(['success' => false, 'message' => 'Deactivate the hive before deleting it permanently.']);
+                return;
+            }
             $result = $this->hiveModel->permanentDeleteHive($id);
             $this->jsonResponse(['success' => $result]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -266,7 +275,7 @@ class Dashboard extends Hive_Controller {
             $sensorId = isset($_GET['sensor_id']) ? (int)$_GET['sensor_id'] : null;
             $dates = $this->calendarNoteModel->getDatesWithNotes($month, $sensorId);
             $this->jsonResponse(['success' => true, 'data' => $dates]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => true, 'data' => []]);
         }
     }
@@ -372,163 +381,219 @@ class Dashboard extends Hive_Controller {
     exit();
     }
     
+    /**
+     * GET /api/readings_export?sensor_id=N&type=readings|summary[&hours=H]
+     * Excel (.xlsx) export of the individual readings table or the daily summary table,
+     * colour-coded with the same bands as the dashboard. Needs a logged-in user.
+     */
     public function exportDataLog() {
-    $sensorId = isset($_GET['sensor_id']) ? (int)$_GET['sensor_id'] : 0;
-    if (!$sensorId) {
-        http_response_code(400);
-        echo 'sensor_id is required.';
-        return;
-    }
-
-    $type     = (($_GET['type'] ?? '') === 'summary') ? 'summary' : 'readings';
-    $hive     = $this->hiveModel->getHiveById($sensorId);
-    $safeName = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $hive['hive_name'] ?? 'hive');
-    $filename = "hivesense_{$type}_{$safeName}_" . date('Ymd_His') . ".xlsx";
-
-    require_once BASE_PATH . '/vendor/autoload.php';
-    $ss    = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-    $sheet = $ss->getActiveSheet();
-
-    // ── color helpers (same bands as the dashboard guide cards) ──
-    $RED = 'EF9A9A'; $ORANGE = 'FFCC80'; $YELLOW = 'FFF59D'; $GREEN = 'C8E6C9'; $BLUE = 'BBDEFB';
-
-    $tempColor = function ($v) use ($RED, $YELLOW, $GREEN, $BLUE) {
-        if ($v === null || $v === '') return null;
-        $v = (float)$v;
-        if ($v < 32) return $BLUE;
-        if ($v < 36) return $GREEN;
-        if ($v < 38) return $YELLOW;
-        return $RED;
-    };
-    $humColor = function ($v) use ($RED, $ORANGE, $YELLOW, $GREEN) {
-        if ($v === null || $v === '') return null;
-        $v = (float)$v;
-        if ($v < 50) return $ORANGE;
-        if ($v < 70) return $GREEN;
-        if ($v < 85) return $YELLOW;
-        return $RED;
-    };
-    // CO2 is an uncalibrated MQ-135 estimate, so it is left uncolored
-    $co2Color = function ($v) { return null; };
-    // Food colors follow the same bands as the dashboard, relative to the hive's recorded full weight
-    $foodRow = $this->alertModel->getFoodRow($sensorId);
-    $fullG   = ($foodRow && $foodRow['full_weight_g'] !== null) ? (float)$foodRow['full_weight_g'] : 0;
-    $foodColor = function ($v) use ($RED, $ORANGE, $YELLOW, $GREEN, $fullG) {
-        if ($v === null || $v === '' || $fullG <= 0) return null;
-        $key = Alert_Model::foodState((float)$v, $fullG)['key'];
-        return ['full' => $GREEN, 'moderate' => $YELLOW, 'low' => $ORANGE, 'empty' => $RED][$key];
-    };
-    $paint = function (string $cell, ?string $rgb) use ($sheet) {
-        if ($rgb) $sheet->getStyle($cell)->getFill()->setFillType('solid')->getStartColor()->setRGB($rgb);
-    };
-
-    if ($type === 'readings') {
-        $sheet->setTitle('Individual Readings');
-        $from = $_GET['date_from'] ?? '';
-        $to   = $_GET['date_to']   ?? '';
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = $from;
-            $rows = $this->measurementModel->getReadingsByRange($from, $to, 20000, $sensorId);
-        } else {
-            $hours = isset($_GET['hours']) ? max(1, (int)$_GET['hours']) : 24;
-            $rows  = $this->measurementModel->getReadings($hours, 20000, $sensorId);
+        $sensorId = isset($_GET['sensor_id']) ? (int)$_GET['sensor_id'] : 0;
+        if (!$sensorId) {
+            http_response_code(400);
+            echo 'sensor_id is required.';
+            return;
         }
-        $last  = 'G';
 
-        $sheet->fromArray(['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'CO2 (ppm)', 'Food (g)', 'Temp Status'], null, 'A1');
+        // Big exports need more time/memory than the host default
+        @set_time_limit(300);
+        @ini_set('memory_limit', '512M');
 
-        $r = 2;
-        foreach ($rows as $row) {
-            $t = $row['temperature'];
-            $status = '';
-            if ($t !== null) {
-                $status = $t < 32 ? 'Cold' : ($t < 36 ? 'Optimal' : ($t < 38 ? 'Warm' : 'Hot'));
+        $type     = (($_GET['type'] ?? '') === 'summary') ? 'summary' : 'readings';
+        $hive     = $this->hiveModel->getHiveById($sensorId);
+        $safeName = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $hive['hive_name'] ?? 'hive');
+        $filename = "hivesense_{$type}_{$safeName}_" . date('Ymd_His') . ".xlsx";
+
+        require_once BASE_PATH . '/vendor/autoload.php';
+        $ss    = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $ss->getActiveSheet();
+
+        // ── colour helpers (same bands as the dashboard guide cards) ──
+        $RED = 'EF9A9A'; $ORANGE = 'FFCC80'; $YELLOW = 'FFF59D'; $GREEN = 'C8E6C9'; $BLUE = 'BBDEFB';
+
+        $tempColor = function ($v) use ($RED, $YELLOW, $GREEN, $BLUE) {
+            if ($v === null || $v === '') return null;
+            $v = (float)$v;
+            if ($v < 32) return $BLUE;
+            if ($v < 36) return $GREEN;
+            if ($v < 38) return $YELLOW;
+            return $RED;
+        };
+        $humColor = function ($v) use ($RED, $ORANGE, $YELLOW, $GREEN) {
+            if ($v === null || $v === '') return null;
+            $v = (float)$v;
+            if ($v < 50) return $ORANGE;
+            if ($v < 70) return $GREEN;
+            if ($v < 85) return $YELLOW;
+            return $RED;
+        };
+        // CO2 is an uncalibrated MQ-135 estimate, so it is left uncoloured
+        $co2Color = function ($v) { return null; };
+
+        // Food is coloured against the "full" weight recorded for this hive (Food placed button).
+        // No recorded full weight = no colour (there is nothing to compare against).
+        $foodRef  = $this->alertModel->getFoodReference($sensorId);
+        $foodFull = $foodRef ? (float)$foodRef['full_weight_g'] : 0.0;
+        $foodColor = function ($v) use ($foodFull, $RED, $ORANGE, $YELLOW, $GREEN) {
+            if ($foodFull <= 0 || $v === null || $v === '') return null;
+            switch (Alert_Model::foodState((float)$v, $foodFull)['key']) {
+                case 'full':     return $GREEN;
+                case 'moderate': return $YELLOW;
+                case 'low':   return $ORANGE;
+                default:      return $RED;
             }
-            $food = $row['food_level'] !== null ? round($row['food_level']) : null;
+        };
 
-            $sheet->fromArray([
-                $row['measurement_date'], $row['measurement_time'],
-                $t, $row['humidity'], $row['co2'], $food, $status,
-            ], null, "A$r");
+        // Cell colours are collected first and applied as ranges (one style call per run of
+        // equal colour instead of one per cell) - much faster and lighter on memory.
+        $marks = [];   // $marks[column letter][row] = rgb
+        $mark  = function (string $col, int $row, ?string $rgb) use (&$marks) {
+            if ($rgb) $marks[$col][$row] = $rgb;
+        };
+        $applyMarks = function () use (&$marks, $sheet) {
+            foreach ($marks as $col => $rowsMap) {
+                ksort($rowsMap);
+                $runStart = $prevRow = $runRgb = null;
+                $flush = function () use (&$runStart, &$prevRow, &$runRgb, $col, $sheet) {
+                    if ($runStart === null) return;
+                    $sheet->getStyle("{$col}{$runStart}:{$col}{$prevRow}")
+                          ->getFill()->setFillType('solid')->getStartColor()->setRGB($runRgb);
+                };
+                foreach ($rowsMap as $row => $rgb) {
+                    if ($runStart !== null && $rgb === $runRgb && $row === $prevRow + 1) {
+                        $prevRow = $row;
+                        continue;
+                    }
+                    $flush();
+                    $runStart = $prevRow = $row;
+                    $runRgb = $rgb;
+                }
+                $flush();
+            }
+        };
 
-            $paint("C$r", $tempColor($t));
-            $paint("D$r", $humColor($row['humidity']));
-            $paint("E$r", $co2Color($row['co2']));
-            $paint("F$r", $foodColor($food));
-            $paint("G$r", $tempColor($t));
-            $r++;
+        $note = null;   // optional line shown under the legend
+
+        if ($type === 'readings') {
+            $sheet->setTitle('Individual Readings');
+            // Either a date range (date_from / date_to, inclusive) or "last N hours"
+            $from = $_GET['date_from'] ?? '';
+            $to   = $_GET['date_to']   ?? '';
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $to = $from;
+                $rows = $this->measurementModel->getReadingsByRange($from, $to, 40000, $sensorId);
+            } else {
+                $hours = isset($_GET['hours']) ? min(168, max(1, (int)$_GET['hours'])) : 24;
+                $rows  = $this->measurementModel->getReadings($hours, 40000, $sensorId);
+            }
+            $last  = 'G';
+
+            // Keep the file a workable size: very long ranges keep every Nth reading
+            $maxRows = 12000;
+            if (count($rows) > $maxRows) {
+                $step = (int)ceil(count($rows) / $maxRows);
+                $kept = [];
+                foreach ($rows as $i => $row) {
+                    if ($i % $step === 0) $kept[] = $row;
+                }
+                $note = "This range had " . count($rows) . " readings; every {$step}th reading is shown to keep the file small.";
+                $rows = $kept;
+            }
+
+            $sheet->fromArray(['Date', 'Time', 'Temperature (°C)', 'Humidity (%)', 'CO2 (ppm)', 'Supplementary Food (g)', 'Temp Status'], null, 'A1');
+
+            $r = 2;
+            foreach ($rows as $row) {
+                $t = $row['temperature'];
+                $status = '';
+                if ($t !== null) {
+                    $status = $t < 32 ? 'Cold' : ($t < 36 ? 'Optimal' : ($t < 38 ? 'Warm' : 'Hot'));
+                }
+                $food = $row['food_level'] !== null ? round($row['food_level']) : null;
+
+                $sheet->fromArray([
+                    $row['measurement_date'], $row['measurement_time'],
+                    $t, $row['humidity'], $row['co2'], $food, $status,
+                ], null, "A$r");
+
+                $mark('C', $r, $tempColor($t));
+                $mark('D', $r, $humColor($row['humidity']));
+                $mark('E', $r, $co2Color($row['co2']));
+                $mark('F', $r, $foodColor($food));
+                $mark('G', $r, $tempColor($t));
+                $r++;
+            }
+        } else {
+            $sheet->setTitle('Daily Summary');
+            $rows = $this->measurementModel->getDailyStats(365, $sensorId);
+            $last = 'J';
+
+            $sheet->fromArray(['Date', 'Avg Temp (°C)', 'Avg Humidity (%)', 'Max Temp (°C)', 'Min Temp (°C)',
+                               'Avg CO2 (ppm)', 'Max CO2 (ppm)', 'Avg Supplementary Food (g)', 'Min Supplementary Food (g)', 'Readings'], null, 'A1');
+
+            $r = 2;
+            foreach ($rows as $row) {
+                $avgFood = $row['avg_food_level'] !== null ? round($row['avg_food_level']) : null;
+                $minFood = $row['min_food_level'] !== null ? round($row['min_food_level']) : null;
+
+                $sheet->fromArray([
+                    $row['measurement_date'], $row['avg_temperature'], $row['avg_humidity'],
+                    $row['max_temperature'], $row['min_temperature'],
+                    $row['avg_co2'], $row['max_co2'], $avgFood, $minFood, $row['reading_count'],
+                ], null, "A$r");
+
+                $mark('B', $r, $tempColor($row['avg_temperature']));
+                $mark('C', $r, $humColor($row['avg_humidity']));
+                $mark('D', $r, $tempColor($row['max_temperature']));
+                $mark('E', $r, $tempColor($row['min_temperature']));
+                $mark('F', $r, $co2Color($row['avg_co2']));
+                $mark('G', $r, $co2Color($row['max_co2']));
+                $mark('H', $r, $foodColor($avgFood));
+                $mark('I', $r, $foodColor($minFood));
+                $r++;
+            }
         }
-    } else {
-        $sheet->setTitle('Daily Summary');
-        $rows = $this->measurementModel->getDailyStats(365, $sensorId);
-        $last = 'J';
 
-        $sheet->fromArray(['Date', 'Avg Temp (°C)', 'Avg Humidity (%)', 'Max Temp (°C)', 'Min Temp (°C)',
-                           'Avg CO2 (ppm)', 'Max CO2 (ppm)', 'Avg Food (g)', 'Min Food (g)', 'Readings'], null, 'A1');
+        $applyMarks();
 
-        $r = 2;
-        foreach ($rows as $row) {
-            $avgFood = $row['avg_food_level'] !== null ? round($row['avg_food_level']) : null;
-            $minFood = $row['min_food_level'] !== null ? round($row['min_food_level']) : null;
+        // header row
+        $sheet->getStyle("A1:{$last}1")->applyFromArray([
+            'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill'      => ['fillType' => 'solid', 'startColor' => ['rgb' => '2D7A3A']],
+            'alignment' => ['wrapText' => true, 'vertical' => 'center'],
+        ]);
+        foreach (range('A', $last) as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
+        $sheet->freezePane('A2');
 
-            $sheet->fromArray([
-                $row['measurement_date'], $row['avg_temperature'], $row['avg_humidity'],
-                $row['max_temperature'], $row['min_temperature'],
-                $row['avg_co2'], $row['max_co2'], $avgFood, $minFood, $row['reading_count'],
-            ], null, "A$r");
-
-            $paint("B$r", $tempColor($row['avg_temperature']));
-            $paint("C$r", $humColor($row['avg_humidity']));
-            $paint("D$r", $tempColor($row['max_temperature']));
-            $paint("E$r", $tempColor($row['min_temperature']));
-            $paint("F$r", $co2Color($row['avg_co2']));
-            $paint("G$r", $co2Color($row['max_co2']));
-            $paint("H$r", $foodColor($avgFood));
-            $paint("I$r", $foodColor($minFood));
-            $r++;
+        // legend
+        $l = $r + 2;
+        $sheet->setCellValue("A$l", 'Legend');
+        $sheet->getStyle("A$l")->getFont()->setBold(true);
+        $legend = [
+            [$BLUE,   'Cold (temp below 32 °C)'],
+            [$GREEN,  'Optimal / Good / Full supplementary food'],
+            [$YELLOW, 'Warm / Humid / Half-full supplementary food'],
+            [$ORANGE, 'Dry / Low supplementary food'],
+            [$RED,    'Hot / Very humid / Empty supplementary food'],
+        ];
+        foreach ($legend as $i => [$rgb, $text]) {
+            $cell = 'A' . ($l + 1 + $i);
+            $sheet->setCellValue($cell, $text);
+            $sheet->getStyle($cell)->getFill()->setFillType('solid')->getStartColor()->setRGB($rgb);
         }
+        $n = $l + 1 + count($legend);
+        $sheet->setCellValue("A$n", $foodFull > 0
+            ? 'Supplementary food colours use the full weight recorded for this hive (' . round($foodFull) . ' g).'
+            : 'Supplementary food is not coloured: no "full" weight has been recorded for this hive (use the Supplementary food placed button).');
+        if ($note) $sheet->setCellValue('A' . ($n + 1), $note);
+
+        if (ob_get_length()) ob_end_clean();
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+        (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($ss))->save('php://output');
+        exit();
     }
 
-    // header row
-    $sheet->getStyle("A1:{$last}1")->applyFromArray([
-        'font'      => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-        'fill'      => ['fillType' => 'solid', 'startColor' => ['rgb' => '2D7A3A']],
-        'alignment' => ['wrapText' => true, 'vertical' => 'center'],
-    ]);
-    foreach (range('A', $last) as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
-    $sheet->freezePane('A2');
-
-    // legend
-    $l = $r + 2;
-    $sheet->setCellValue("A$l", 'Legend');
-    $sheet->getStyle("A$l")->getFont()->setBold(true);
-    $legend = [
-        [$BLUE,   'Cold (temp below 32 °C)'],
-        [$GREEN,  'Optimal / Good / Well stocked'],
-        [$YELLOW, 'Warm / Humid / Moderate'],
-        [$ORANGE, 'Dry / Low food'],
-        [$RED,    'Hot / Very humid / Empty'],
-    ];
-    foreach ($legend as $i => [$rgb, $text]) {
-        $cell = 'A' . ($l + 1 + $i);
-        $sheet->setCellValue($cell, $text);
-        $paint($cell, $rgb);
-    }
-
-    // note on what the food colors are relative to
-    $noteRow = $l + 7;
-    $sheet->setCellValue("A$noteRow", $fullG > 0
-        ? 'Food colors are relative to the recorded full weight (' . round($fullG) . ' g).'
-        : 'Food colors are off: no full weight has been recorded for this hive yet.');
-    $sheet->mergeCells("A$noteRow:E$noteRow");  
-
-    if (ob_get_length()) ob_end_clean();
-    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Cache-Control: max-age=0');
-    (new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($ss))->save('php://output');
-    exit();
-}
     public function getNoteByDate() {
         try {
             $this->requireApiarist();
@@ -540,7 +605,7 @@ class Dashboard extends Hive_Controller {
                 $prefill = $this->calendarNoteModel->getLatestNoteBefore($date, $sensorId);
             }
             $this->jsonResponse(['success' => true, 'data' => $note, 'prefill' => $prefill]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => true, 'data' => null]);
         }
     }
@@ -555,11 +620,10 @@ class Dashboard extends Hive_Controller {
             }
             $dates = $this->calendarNoteModel->getNoteDatesForHive($sensorId);
             $this->jsonResponse(['success' => true, 'data' => $dates]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
-
 
     public function getLastNoteDefaults() {
         try {
@@ -568,7 +632,7 @@ class Dashboard extends Hive_Controller {
             $date     = $_GET['date'] ?? date('Y-m-d');
             $note = $sensorId ? $this->calendarNoteModel->getPreviousNoteForHive($sensorId, $date) : null;
             $this->jsonResponse(['success' => true, 'data' => $note]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => true, 'data' => null]);
         }
     }
@@ -583,7 +647,7 @@ class Dashboard extends Hive_Controller {
             }
             $note = $this->calendarNoteModel->getNoteById($noteId);
             $this->jsonResponse(['success' => true, 'data' => $note]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -615,7 +679,7 @@ class Dashboard extends Hive_Controller {
             }
             
             $this->jsonResponse(['success' => true, 'note_id' => $noteId]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -633,7 +697,7 @@ class Dashboard extends Hive_Controller {
             
             $result = $this->calendarNoteModel->deleteNote($noteId);
             $this->jsonResponse(['success' => $result]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -643,9 +707,10 @@ class Dashboard extends Hive_Controller {
 
     public function getAnnouncements(): void {
         try {
+            $this->requireAdmin();
             $announcements = $this->announcementModel->getAll();
             $this->jsonResponse(['success' => true, 'data' => $announcements]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -668,7 +733,7 @@ class Dashboard extends Hive_Controller {
                 $title, $body, $type, (int)($_SESSION['user_id'] ?? 0)
             );
             $this->jsonResponse(['success' => true, 'id' => $id]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -691,7 +756,7 @@ class Dashboard extends Hive_Controller {
 
             $result = $this->announcementModel->update($id, $title, $body, $type, $isActive);
             $this->jsonResponse(['success' => $result]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -706,7 +771,7 @@ class Dashboard extends Hive_Controller {
                 return;
             }
             $this->jsonResponse(['success' => $this->announcementModel->delete($id)]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -721,7 +786,7 @@ class Dashboard extends Hive_Controller {
                 return;
             }
             $this->jsonResponse(['success' => $this->announcementModel->toggleActive($id)]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -736,7 +801,7 @@ class Dashboard extends Hive_Controller {
             $sensorId = isset($_GET['sensor_id']) ? (int)$_GET['sensor_id'] : null;
             $alerts = $this->alertModel->getActiveAlerts($sensorId);
             $this->jsonResponse(['success' => true, 'data' => $alerts]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -748,7 +813,7 @@ class Dashboard extends Hive_Controller {
             $limit    = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
             $alerts = $this->alertModel->getAlertHistory($sensorId, $limit);
             $this->jsonResponse(['success' => true, 'data' => $alerts]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }
@@ -764,7 +829,7 @@ class Dashboard extends Hive_Controller {
             }
             $result = $this->alertModel->acknowledgeAlert($id, (int)($_SESSION['user_id'] ?? 0));
             $this->jsonResponse(['success' => $result]);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->jsonResponse(['success' => false, 'message' => $e->getMessage()]);
         }
     }

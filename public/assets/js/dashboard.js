@@ -65,10 +65,103 @@ $(document).ready(function() {
     initRatingBars();
     loadAlerts();
 
+    // Pull any new ThingSpeak readings into the database, then refresh the screen.
+    syncBridge().then(refreshData);
+
     refreshTimer = setInterval(function() {
-        refreshData();
-    }, 30000);
+        syncBridge().then(refreshData);
+    }, 20000);
 });
+
+// Asks the server to copy new ThingSpeak entries into the database. Runs from the
+// logged-in browser, so it does not depend on an external cron pinger reaching the host.
+// If the database is behind (dashboard was closed, ESP32 was offline), the server answers
+// "more": true and we keep calling until it has caught up.
+let bridgeSyncing = false;
+async function syncBridge() {
+    if (bridgeSyncing) return;
+    bridgeSyncing = true;
+    const base = BASE_URL.replace(/\/+$/, '') + '/api/bridge_sync';
+    let from = null, announced = false;
+    try {
+        for (let i = 0; i < 80; i++) {
+            const res = await fetch(from ? base + '?from=' + from : base);
+            const d = await res.json();
+            if (!d || !d.success || d.skipped) break;
+            if (!d.more || !d.next_from) break;
+            if (!announced) { showToast('Catching up on missed readings\u2026', 'info'); announced = true; }
+            from = d.next_from;
+        }
+    } catch (e) {
+        console.warn('bridge_sync failed:', e);
+    } finally {
+        bridgeSyncing = false;
+    }
+}
+
+// ── Food monitor ─────────────────────────────────────────────────
+// Status comes from the weight on the scale compared with the weight the beekeeper
+// recorded as "full" (Supplementary food placed button). No reference yet = just show the weight.
+function renderFood(d) {
+    const food  = (d.food_level !== null && d.food_level !== undefined) ? parseFloat(d.food_level) : null;
+    const full  = d.food_full_g != null ? parseFloat(d.food_full_g) : null;
+    const b     = d.food_bands || { full_min: 75, half_min: 40, empty_max: 10 };
+    const badge = $('#foodStatusBadge');
+
+    $('#currentFood').text(food !== null ? food.toFixed(0) : '--');
+    badge.removeClass('full good moderate low empty');
+
+    if (full && food !== null && d.food_state) {
+        const cls = { full: 'full', moderate: 'moderate', half: 'moderate', low: 'low', empty: 'empty' }[d.food_state] || '';
+        badge.text(d.food_label || '\u2014').addClass(cls);
+        $('#foodRefText').text('Full = ' + Math.round(full) + ' g  \u00b7  ' + Math.round(d.food_pct) + '% left');
+    } else if (d.food_pending) {
+        badge.text('Waiting\u2026');
+        $('#foodRefText').text('Recording the full amount from the next reading\u2026');
+    } else {
+        badge.text('Not set');
+        $('#foodRefText').text('Press "Supplementary food placed" after putting the food on the scale');
+    }
+    $('#foodPendingNote').toggle(!!d.food_pending);
+    $('#foodPlacedBtn').prop('disabled', !!d.food_pending);   // can't press again while waiting
+
+    // Guide: grams once a full weight is known, otherwise percentages
+    const g = p => Math.round(full * p / 100);
+    if (full) {
+        $('#foodRangeFull').text(g(b.full_min) + ' g and up');
+        $('#foodRangeHalf').text(g(b.half_min) + ' \u2013 ' + g(b.full_min) + ' g');
+        $('#foodRangeLow').text(g(b.empty_max) + ' \u2013 ' + g(b.half_min) + ' g');
+        $('#foodRangeEmpty').text(g(b.empty_max) + ' g or less');
+    } else {
+        $('#foodRangeFull').text(b.full_min + '%+ of full');
+        $('#foodRangeHalf').text(b.half_min + '\u2013' + b.full_min + '%');
+        $('#foodRangeLow').text(b.empty_max + '\u2013' + b.half_min + '%');
+        $('#foodRangeEmpty').text(b.empty_max + '% or less');
+    }
+}
+
+// Beekeeper put fresh food on the scale: the next settled reading becomes "full".
+async function markFoodPlaced() {
+    if (!currentSensorId) { showToast('Select a hive first.', 'error'); return; }
+    if (!await confirmDialog({ title: 'Is the supplementary food now on the scale?', text: 'The weight read in the next ~30 seconds will be saved as FULL for this hive.', confirmText: 'Yes, food is placed' })) return;
+    const btn = $('#foodPlacedBtn');
+    btn.prop('disabled', true);
+    try {
+        const res = await fetch(BASE_URL.replace(/\/+$/, '') + '/api/food_placed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sensor_id: currentSensorId })
+        });
+        const r = await res.json();
+        if (!r.success) throw new Error(r.message || 'Request failed');
+        showToast(r.message, 'success');
+        loadCurrentData();
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+    } finally {
+        btn.prop('disabled', false);
+    }
+}
 
 // Build a URL with optional sensor_id param, safely joining BASE_URL and path
 function apiUrl(path, extraParams) {
@@ -133,32 +226,8 @@ async function loadCurrentData() {
             $('#minCo2').text(d.min_co2 != null ? parseFloat(d.min_co2).toFixed(1) : '--');
             $('#maxCo2').text(d.max_co2 != null ? parseFloat(d.max_co2).toFixed(1) : '--');
 
-            // Food level (judged against the recorded "full" weight)
-            const food  = d.food_level ?? null;
-            const fullG = d.food_full_g != null ? parseFloat(d.food_full_g) : null;
-            const bands = d.food_bands || { full_min: 75, half_min: 40, empty_max: 10 };
-            if (fullG) {
-                const g = p => Math.round(fullG * p / 100);
-                $('#foodRangeFull').text(`≥ ${g(bands.full_min)} g`);
-                $('#foodRangeHalf').text(`${g(bands.half_min)}–${g(bands.full_min)} g`);
-                $('#foodRangeLow').text(`${g(bands.empty_max)}–${g(bands.half_min)} g`);
-                $('#foodRangeEmpty').text(`≤ ${g(bands.empty_max)} g`);
-                $('#foodRefText').text(`Full = ${Math.round(fullG)} g`);
-            } else {
-                $('#foodRangeFull, #foodRangeHalf, #foodRangeLow, #foodRangeEmpty').text('--');
-                $('#foodRefText').text('Press "Food placed" after putting food on the scale');
-            }
-            const fb = $('#foodStatusBadge').removeClass('full good moderate low empty');
-            if (food !== null && food !== undefined) {
-                $('#currentFood').text(parseFloat(food).toFixed(0));
-                if (d.food_state) fb.text(d.food_label).addClass(d.food_state);
-                else fb.text('—');
-            } else {
-                $('#currentFood').text('--');
-                fb.text('—');
-            }
-            $('#foodPlacedBtn').prop('disabled', !!d.food_pending);
-            $('#foodPendingNote').toggle(!!d.food_pending);
+            // Supplementary food level: judged against the full weight the beekeeper recorded
+            renderFood(d);
 
             if (d.measurement_date && d.measurement_time) {
                 const timeStr = `${d.measurement_date} ${d.measurement_time}`;
@@ -221,7 +290,7 @@ function setSummaryDays(days, btn) {
 // Live mode — fetch every individual reading
 async function loadHistoryData(hours) {
     try {
-        const response = await fetch(apiUrl('/api/readings', { hours: hours || 1 }));
+        const response = await fetch(apiUrl('/api/readings', { hours: hours || 1, bucket: hours >= 168 ? 1800 : (hours >= 24 ? 300 : 0) }));
         const result   = await response.json();
         if (result.success && result.data && result.data.length > 0) {
             $('#chartEmpty').hide();
@@ -252,7 +321,9 @@ async function loadSummaryChart(days) {
 
 function renderChartLive(data) {
     const hasCo2 = data.some(d => d.co2 != null && parseFloat(d.co2) > 0);
-    const labels = data.map(d => d.measurement_time ? d.measurement_time.slice(0,5) : d.timestamp);
+    const labels = data.map(d => d.measurement_time
+        ? (currentHours > 24 ? d.measurement_date.slice(5) + ' ' : '') + d.measurement_time.slice(0,5)
+        : d.timestamp);
     const tempData = data.map(d => parseFloat(d.temperature));
     const humData  = data.map(d => parseFloat(d.humidity));
     const co2Data  = hasCo2 ? data.map(d => d.co2 != null ? parseFloat(d.co2) : null) : null;
@@ -385,7 +456,9 @@ async function loadReadingsTable(keepPage = false) {
     const tbody = $('#readingsTableBody');
     if (!keepPage) tbody.html('<tr><td colspan="8" class="loading">Loading...</td></tr>');
     try {
-        const response = await fetch(apiUrl('/api/readings', { hours }));
+        const df = $('#readingsDateFrom').val(), dt = $('#readingsDateTo').val();
+        const qp = df ? { date_from: df, date_to: dt || df } : { hours };
+        const response = await fetch(apiUrl('/api/readings', qp));
         const result   = await response.json();
         if (!result.success || !result.data || !result.data.length) {
             readingsRows = [];
@@ -396,6 +469,10 @@ async function loadReadingsTable(keepPage = false) {
             return;
         }
         readingsRows = [...result.data].reverse();   // newest first
+        const note = $('#readingsNote');
+        if (result.total != null && result.total > result.data.length) {
+            note.text(`Showing the first ${result.data.length} of ${result.total} readings in this date range. Narrow the dates to see the rest.`).show();
+        } else { note.hide(); }
         if (!keepPage) readingsPageNum = 1;
         renderReadingsPage(hours);
     } catch(e) {
@@ -521,6 +598,8 @@ function selectHive(sensorId, element) {
     $('#tempStatusBadge, #humidityStatusBadge').text('—').removeClass('cold optimal warm hot dry humid very-humid');
     $('#co2StatusBadge').text('—').removeClass('good moderate high danger');
     $('#foodStatusBadge').text('—').removeClass('full good moderate low empty');
+    $('#foodRefText').text('--');
+    $('#foodPendingNote').hide();
     $('#tempTime, #humidityTime, #co2Time, #foodTime').text('--');
     $('#readingsTableBody').html('<tr><td colspan="8" class="loading">Loading data...</td></tr>');
     $('#tableBody').html('<tr><td colspan="12" class="loading">Loading data...</td></tr>');
@@ -711,8 +790,6 @@ function populateInspectionForm(note) {
     $('#insp_feeding').val(note.feeding !== null && note.feeding !== undefined ? String(note.feeding) : '');
     $('#insp_feed_type').val(note.feed_type ?? '');
     toggleFeedType();
-    $('#insp_feed_type').val(note.feed_type ?? '');
-    toggleFeedType();
     $('#insp_brood_pattern_type').val(note.brood_pattern_type ?? '');
     $('#insp_temperament').val(note.temperament ?? '');
     $('#insp_treatment_date').val(note.treatment_date ?? '');
@@ -724,6 +801,7 @@ function populateInspectionForm(note) {
         insp_brood_pattern_close: note.brood_pattern_close,
         insp_brood_pattern_open: note.brood_pattern_open
     };
+    // Honey / pollen store are now a number of frames (dropdown), not a 1-10 rating
     $('#insp_honey_store').val(note.honey_store !== null && note.honey_store !== undefined ? String(note.honey_store) : '');
     $('#insp_pollen_store').val(note.pollen_store !== null && note.pollen_store !== undefined ? String(note.pollen_store) : '');
     
@@ -860,7 +938,7 @@ async function saveCurrentNote() {
 
 async function deleteCurrentNote() {
     const noteId = $('#noteId').val();
-    if (!noteId || !confirm('Delete this inspection record?')) return;
+    if (!noteId || !await confirmDialog({ title: 'Delete this inspection record?', text: 'This cannot be undone.', confirmText: 'Delete', danger: true })) return;
     
     try {
         const response = await fetch(BASE_URL + '/api/note_delete', {
@@ -1004,7 +1082,7 @@ async function submitHiveForm() {
 }
 
 async function confirmDeleteHive(id, name) {
-    if (!confirm(`Deactivate "${name}"? Its readings will be preserved.`)) return;
+    if (!await confirmDialog({ title: `Deactivate "${name}"?`, text: 'Its readings will be preserved.', confirmText: 'Deactivate', danger: true })) return;
     try {
         const response = await fetch(BASE_URL + '/api/hive_delete', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1035,7 +1113,7 @@ async function restoreHive(id) {
 }
 
 async function permanentDeleteHive(id, name) {
-    if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+    if (!await confirmDialog({ title: `Permanently delete "${name}"?`, text: 'This cannot be undone.', confirmText: 'Delete forever', danger: true })) return;
     try {
         const response = await fetch(BASE_URL + '/api/hive_permanent_delete', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1099,15 +1177,56 @@ function updateCalendarHiveSelect(hives) {
     }
 }
 
-// Toast notification
-let toastTimer = null;
+// ── SweetAlert2 notifications (toast at the TOP of the screen) ───────────
+// To move it: 'top' = top-center, 'top-end' = top-right, 'top-start' = top-left.
+const TOAST_POSITION = 'top';
+
+const swalToast = (typeof Swal !== 'undefined') ? Swal.mixin({
+    toast: true,
+    position: TOAST_POSITION,
+    showConfirmButton: false,
+    showCloseButton: true,
+    timerProgressBar: true,
+    didOpen: (t) => {
+        t.addEventListener('mouseenter', Swal.stopTimer);   // hover = keep it open
+        t.addEventListener('mouseleave', Swal.resumeTimer);
+    }
+}) : null;
+
+let toastTimer = null;   // only used by the fallback below
 function showToast(msg, type = 'success') {
-    const toast = $('#toast');
-    toast.text(msg);
-    toast.removeClass('success error info').addClass(`${type} show`);
-    if (toastTimer) clearTimeout(toastTimer);
-    const duration = type === 'info' ? 6000 : 3000;
-    toastTimer = setTimeout(() => toast.removeClass('show'), duration);
+    // Safety net: if the SweetAlert CDN failed to load, fall back to the old toast
+    if (!swalToast) {
+        const toast = $('#toast');
+        toast.text(msg).removeClass('success error info').addClass(`${type} show`);
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.removeClass('show'), type === 'info' ? 6000 : 3000);
+        return;
+    }
+    // Don't let a background toast kick out a confirm dialog the user is answering
+    if (Swal.isVisible() && !Swal.getPopup().classList.contains('swal2-toast')) {
+        setTimeout(() => showToast(msg, type), 1000);
+        return;
+    }
+    const icon = ({ success: 'success', error: 'error', info: 'info', warning: 'warning' })[type] || 'info';
+    swalToast.fire({ icon, title: msg, timer: type === 'info' ? 6000 : (type === 'error' ? 4000 : 3000) });
+}
+
+// Confirmation dialog (replaces the browser's confirm()). Returns true/false.
+async function confirmDialog({ title, text = '', confirmText = 'Yes', danger = false }) {
+    if (typeof Swal === 'undefined') return window.confirm(title + (text ? '\n\n' + text : ''));
+    const r = await Swal.fire({
+        icon: danger ? 'warning' : 'question',
+        title, text,
+        showCancelButton: true,
+        confirmButtonText: confirmText,
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: danger ? '#D94F4F' : '#2D7A3A',
+        cancelButtonColor: '#85A88C',
+        reverseButtons: true,
+        focusCancel: danger
+    });
+    return r.isConfirmed;
 }
 
 function fmtFood(v) {
@@ -1116,7 +1235,15 @@ function fmtFood(v) {
 
 function formatDate(dateStr) {
     if (!dateStr) return '—';
-    return new Date(dateStr).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(String(dateStr).replace(' ', 'T')).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// Date AND time, e.g. "Oct 24, 2026, 3:45 PM" (used for alerts)
+function formatDateTime(dateStr) {
+    if (!dateStr) return '—';
+    return new Date(String(dateStr).replace(' ', 'T')).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
 }
 
 function escapeHtml(str) {
@@ -1162,7 +1289,7 @@ async function loadUserManagerList() {
             const inactive = parseInt(u.is_active) === 0;
             const roleBadge = `<span class="umi-badge-role ${u.role === 'admin' ? 'admin' : ''}">${u.role}</span>`;
             const inactiveBadge = inactive ? '<span class="umi-badge-inactive">Inactive</span>' : '';
-            const lastLogin = u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : 'Never';
+            const lastLogin = u.last_login_at ? new Date(String(u.last_login_at).replace(' ', 'T')).toLocaleDateString() : 'Never';
             // FIX: Store edit data in data-attributes to avoid inline string escaping issues
             html += `<div class="user-manager-item ${inactive ? 'inactive' : ''}">
                 <div class="umi-info">
@@ -1288,7 +1415,7 @@ async function toggleUserActive(id) {
     } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
 async function confirmDeleteUser(id, username) {
-    if (!confirm(`Permanently delete user "${username}"? This cannot be undone.`)) return;
+    if (!await confirmDialog({ title: `Permanently delete user "${username}"?`, text: 'This cannot be undone.', confirmText: 'Delete user', danger: true })) return;
     try {
         const res = await fetch(BASE_URL + '/api/user_delete', {
             method:'POST', headers:{'Content-Type':'application/json'},
@@ -1391,7 +1518,7 @@ async function loadAnnList() {
             annDataMap[a.id] = a;
 
             const t    = ANN_TYPE_LABELS[a.type] || ANN_TYPE_LABELS.info;
-            const date = new Date(a.created_at).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' });
+            const date = new Date(String(a.created_at).replace(' ', 'T')).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' });
             const inactive = parseInt(a.is_active) === 0;
 
             html += `<div class="hive-manager-item ${inactive ? 'inactive' : ''}" style="flex-direction:column;align-items:flex-start;gap:10px;">
@@ -1501,7 +1628,7 @@ async function toggleAnn(id) {
 async function deleteAnn(id) {
     const a = annDataMap[id];
     const title = a ? a.title : 'this announcement';
-    if (!confirm(`Delete announcement "${title}"? This cannot be undone.`)) return;
+    if (!await confirmDialog({ title: `Delete announcement "${title}"?`, text: 'This cannot be undone.', confirmText: 'Delete', danger: true })) return;
     try {
         const res = await fetch(BASE_URL + '/api/announcement_delete', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1530,10 +1657,19 @@ async function loadAlerts() {
     } catch(e) { console.error('loadAlerts error:', e); }
 }
 
+// Alert toasts are queued so several new alerts show one after another
+// instead of each one replacing the previous.
+let alertToastChain = Promise.resolve();
 function notifyAlert(a) {
-    const label = a.hive_name || 'Unassigned Sensor';
-    const msg   = `[${label}] ${a.message}`;
-    showToast(msg, a.severity === 'critical' ? 'error' : 'info');
+    const label  = a.hive_name || 'Unassigned Sensor';
+    const msg    = `[${label}] ${a.message}`;
+    const isCrit = a.severity === 'critical';
+    if (!swalToast) { showToast(msg, isCrit ? 'error' : 'info'); return; }
+    alertToastChain = alertToastChain.then(() => {
+        // A dialog is open: skip the popup, the alert is still in the bell panel
+        if (Swal.isVisible() && !Swal.getPopup().classList.contains('swal2-toast')) return;
+        return swalToast.fire({ icon: isCrit ? 'error' : 'warning', title: msg, timer: isCrit ? 8000 : 6000 });
+    });
 }
 
 function alertIcon(type) {
@@ -1570,7 +1706,7 @@ function renderAlertPanel(alerts) {
             <div class="alert-item-body">
                 <div class="alert-item-title">${escapeHtml(a.hive_name || 'Unassigned Sensor')}</div>
                 <div class="alert-item-msg">${escapeHtml(a.message)}</div>
-                <div class="alert-item-time">${formatDate(a.created_at)}</div>
+                <div class="alert-item-time">${formatDateTime(a.created_at)}</div>
             </div>
             <button class="alert-ack-btn" onclick="acknowledgeAlert(${a.alert_id})" title="Acknowledge">
                 <i class="fas fa-check"></i>
@@ -1635,7 +1771,7 @@ async function loadAlertHistory() {
                 ? '<span class="ahi-status active">Active</span>'
                 : '<span class="ahi-status resolved">Resolved</span>';
             const resolvedInfo = a.resolved_at
-                ? `<span class="ahi-resolved-time">Resolved: ${formatDate(a.resolved_at)}</span>` : '';
+                ? `<span class="ahi-resolved-time">Resolved: ${formatDateTime(a.resolved_at)}</span>` : '';
             html += `<div class="alert-history-item ${a.severity}">
                 <div class="alert-item-icon"><i class="fas ${icon}"></i></div>
                 <div class="alert-item-body">
@@ -1643,7 +1779,7 @@ async function loadAlertHistory() {
                         ${escapeHtml(a.hive_name || 'Unassigned Sensor')} ${statusBadge}
                     </div>
                     <div class="alert-item-msg">${escapeHtml(a.message)}</div>
-                    <div class="alert-item-time">${formatDate(a.created_at)} ${resolvedInfo}</div>
+                    <div class="alert-item-time">${formatDateTime(a.created_at)} ${resolvedInfo}</div>
                 </div>
             </div>`;
         });
@@ -1786,45 +1922,29 @@ function renderCompareTable() {
         }
     }
     window.location.href = BASE_URL.replace(/\/+$/, '') + '/api/readings_export?' + params.toString();
-    }
+}
 
-    async function markFoodPlaced() {
-        if (!currentSensorId) { showToast('Select a hive first.', 'error'); return; }
-        $('#foodPlacedBtn').prop('disabled', true);
-        try {
-            const res = await fetch(BASE_URL.replace(/\/+$/, '') + '/api/food_placed', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sensor_id: currentSensorId })
-            });
-            const result = await res.json();
-            if (!result.success) throw new Error(result.message);
-            showToast(result.message, 'info');
-            $('#foodPendingNote').show();
-        } catch (e) {
-            $('#foodPlacedBtn').prop('disabled', false);
-            showToast('Error: ' + e.message, 'error');
-        }
-    }
-    
-    function toggleFeedType() {
-        const yes = $('#insp_feeding').val() === '1';
-        $('#feedTypeWrap').toggle(yes);
-        if (!yes) $('#insp_feed_type').val('');
-    }
 
-    async function prefillFromLastNote(ds) {
-        const hiveId = $('#insp_hive_id').val();
-        if (!hiveId) return;
-        try {
-            const res = await fetch(`${BASE_URL}/api/hive_last_note?sensor_id=${hiveId}&date=${ds}`);
-            const result = await res.json();
-            const n = result.success ? result.data : null;
-            if (!n) return;
-            $('#insp_num_colonies').val(n.num_colonies ?? '');
-            $('#insp_queen_species').val(n.queen_species ?? '');
-            $('#insp_queen_age').val(n.queen_age ?? '');
-            $('#insp_feeding').val(n.feeding != null ? String(n.feeding) : '');
-            $('#insp_feed_type').val(n.feed_type ?? '');
-            toggleFeedType();
-        } catch (e) {}
-    }
+function toggleFeedType() {
+    const yes = $('#insp_feeding').val() === '1';
+    $('#feedTypeWrap').toggle(yes);
+    if (!yes) $('#insp_feed_type').val('');
+}
+
+// New inspection: copy colony / queen / feeding details from the previous note for this hive
+async function prefillFromLastNote(ds) {
+    const hiveId = $('#insp_hive_id').val();
+    if (!hiveId) return;
+    try {
+        const res = await fetch(`${BASE_URL}/api/hive_last_note?sensor_id=${hiveId}&date=${ds}`);
+        const result = await res.json();
+        const n = result.success ? result.data : null;
+        if (!n) return;
+        $('#insp_num_colonies').val(n.num_colonies ?? '');
+        $('#insp_queen_species').val(n.queen_species ?? '');
+        $('#insp_queen_age').val(n.queen_age ?? '');
+        $('#insp_feeding').val(n.feeding != null ? String(n.feeding) : '');
+        $('#insp_feed_type').val(n.feed_type ?? '');
+        toggleFeedType();
+    } catch (e) {}
+}

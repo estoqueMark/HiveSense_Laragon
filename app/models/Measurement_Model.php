@@ -92,6 +92,28 @@ class Measurement_Model extends Base_Model {
         return $result->fetch_all(MYSQLI_ASSOC);
     }
 
+    // Averaged readings grouped into time buckets (for long chart ranges)
+    public function getReadingsBucketed(int $hours, int $bucketSec, ?int $sensorId = null): array {
+        $bucketSec = max(30, $bucketSec);
+        $stmt = $this->connection->prepare(
+            'SELECT ROUND(AVG(temperature), 1) AS temperature,
+                    ROUND(AVG(humidity), 1)    AS humidity,
+                    ROUND(AVG(co2), 1)         AS co2,
+                    ROUND(AVG(food_level), 1)  AS food_level,
+                    DATE(MIN(timestamp))       AS measurement_date,
+                    TIME(MIN(timestamp))       AS measurement_time,
+                    MIN(timestamp)             AS timestamp
+             FROM hs_readings
+             WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+               AND sensor_id <=> ?
+             GROUP BY FLOOR(UNIX_TIMESTAMP(timestamp) / ?)
+             ORDER BY MIN(timestamp) ASC'
+        );
+        $stmt->bind_param("iii", $hours, $sensorId, $bucketSec);
+        $stmt->execute();
+        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
+
     // Readings between two dates (inclusive), oldest first
     public function getReadingsByRange(string $from, string $to, int $limit = 5000, ?int $sensorId = null): array {
         $start = $from . ' 00:00:00';
@@ -130,53 +152,28 @@ public function countReadingsByRange(string $from, string $to, ?int $sensorId = 
 
     // Get daily statistics — now scoped to a specific hive
     public function getDailyStats(int $limit = 30, ?int $sensorId = null): array {
-        if ($sensorId) {
-            $stmt = $this->connection->prepare(
-                'SELECT DATE(timestamp) AS measurement_date,
-                    ROUND(AVG(temperature), 1) AS avg_temperature,
-                    ROUND(MIN(temperature), 1) AS min_temperature,
-                    ROUND(MAX(temperature), 1) AS max_temperature,
-                    ROUND(AVG(humidity), 1)    AS avg_humidity,
-                    ROUND(MIN(humidity), 1)    AS min_humidity,
-                    ROUND(MAX(humidity), 1)    AS max_humidity,
-                    ROUND(AVG(co2), 1)         AS avg_co2,
-                    ROUND(MIN(co2), 1)         AS min_co2,
-                    ROUND(MAX(co2), 1)         AS max_co2,
-                    ROUND(AVG(food_level), 1)  AS avg_food_level,
-                    ROUND(MIN(food_level), 1)  AS min_food_level,
-                    ROUND(CAST(SUBSTRING_INDEX(GROUP_CONCAT(food_level ORDER BY timestamp DESC), \',\', 1) AS DECIMAL(12,2)), 1) AS end_food_level,                
-                    COUNT(*) AS reading_count
-                FROM hs_readings
-                WHERE sensor_id = ?
-                GROUP BY DATE(timestamp)
-                ORDER BY measurement_date DESC
-                LIMIT ?'
-            );
-            $stmt->bind_param("ii", $sensorId, $limit);
-        } else {
-            $stmt = $this->connection->prepare(
-                'SELECT DATE(timestamp) AS measurement_date,
-                    ROUND(AVG(temperature), 1) AS avg_temperature,
-                    ROUND(MIN(temperature), 1) AS min_temperature,
-                    ROUND(MAX(temperature), 1) AS max_temperature,
-                    ROUND(AVG(humidity), 1)    AS avg_humidity,
-                    ROUND(MIN(humidity), 1)    AS min_humidity,
-                    ROUND(MAX(humidity), 1)    AS max_humidity,
-                    ROUND(AVG(co2), 1)         AS avg_co2,
-                    ROUND(MIN(co2), 1)         AS min_co2,
-                    ROUND(MAX(co2), 1)         AS max_co2,
-                    ROUND(AVG(food_level), 1)  AS avg_food_level,
-                    ROUND(MIN(food_level), 1)  AS min_food_level,
-                    ROUND(CAST(SUBSTRING_INDEX(GROUP_CONCAT(food_level ORDER BY timestamp DESC), \',\', 1) AS DECIMAL(12,2)), 1) AS end_food_level,                
-                    COUNT(*) AS reading_count
-                FROM hs_readings
-                WHERE sensor_id = ?
-                GROUP BY DATE(timestamp)
-                ORDER BY measurement_date DESC
-                LIMIT ?'
-            );
-            $stmt->bind_param("i", $limit);
-        }
+        $stmt = $this->connection->prepare(
+            'SELECT DATE(timestamp) AS measurement_date,
+                ROUND(AVG(temperature), 1) AS avg_temperature,
+                ROUND(MIN(temperature), 1) AS min_temperature,
+                ROUND(MAX(temperature), 1) AS max_temperature,
+                ROUND(AVG(humidity), 1)    AS avg_humidity,
+                ROUND(MIN(humidity), 1)    AS min_humidity,
+                ROUND(MAX(humidity), 1)    AS max_humidity,
+                ROUND(AVG(co2), 1)         AS avg_co2,
+                ROUND(MIN(co2), 1)         AS min_co2,
+                ROUND(MAX(co2), 1)         AS max_co2,
+                ROUND(AVG(food_level), 1)  AS avg_food_level,
+                ROUND(MIN(food_level), 1)  AS min_food_level,
+                ROUND(CAST(SUBSTRING_INDEX(GROUP_CONCAT(food_level ORDER BY timestamp DESC), \',\', 1) AS DECIMAL(12,2)), 1) AS end_food_level,
+                COUNT(*) AS reading_count
+            FROM hs_readings
+            WHERE sensor_id <=> ?
+            GROUP BY DATE(timestamp)
+            ORDER BY measurement_date DESC
+            LIMIT ?'
+        );
+        $stmt->bind_param("ii", $sensorId, $limit);
         $stmt->execute();
         $result = $stmt->get_result();
         return $result->fetch_all(MYSQLI_ASSOC);

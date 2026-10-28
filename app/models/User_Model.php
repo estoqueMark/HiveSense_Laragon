@@ -49,7 +49,7 @@ class User_Model extends Base_Model {
     public function recordFailedLogin(string $login): void {
         $stmt = $this->connection->prepare(
             'UPDATE hs_users
-             SET failed_login_attempts = failed_login_attempts + 1, last_failed_login = NOW()
+             SET failed_login_attempts = IF(last_failed_login IS NULL OR last_failed_login < DATE_SUB(NOW(), INTERVAL 15 MINUTE), 1, failed_login_attempts + 1), last_failed_login = NOW()
              WHERE (username = ? OR email = ?)'
         );
         $stmt->bind_param("ss", $login, $login);

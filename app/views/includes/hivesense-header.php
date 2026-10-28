@@ -15,6 +15,15 @@
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js"></script>
+    <style>
+        .swal2-container { z-index: 20000 !important; }          /* above sidebar/modals (max 2000) */
+        .swal2-popup { font-family: 'Poppins', sans-serif; }
+        .swal2-popup.swal2-toast { padding: 10px 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); max-width: min(92vw, 520px); }
+        .swal2-popup.swal2-toast .swal2-title { font-size: 0.86rem; font-weight: 500; text-align: left; }
+    </style>
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
       <!-- link to css -->

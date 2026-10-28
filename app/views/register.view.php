@@ -9,6 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= ROOT ?>/public/assets/css/register.css">
    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.14.5/dist/sweetalert2.all.min.js"></script>
+    <style>.swal2-container{z-index:20000!important}.swal2-popup{font-family:'Nunito',sans-serif}.swal2-popup.swal2-toast .swal2-title{font-size:.86rem;text-align:left}</style>
 </head>
 <body>
 
@@ -48,13 +50,6 @@
         <div class="form-eyebrow">Get started</div>
         <h2 class="form-title">Create your account</h2>
         <p class="form-desc">All fields marked <span style="color:var(--green);font-weight:700;">*</span> are required.</p>
-
-        <?php if (!empty($error)): ?>
-            <div class="alert-error">
-                <i class="fas fa-exclamation-circle"></i>
-                <span><?= htmlspecialchars($error) ?></span>
-            </div>
-        <?php endif; ?>
 
         <form method="POST" action="<?= ROOT ?>/register/submit" autocomplete="on" id="regForm">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
@@ -209,6 +204,13 @@ document.getElementById('regForm').addEventListener('submit', function() {
         text.textContent = 'Creating your account...';
     }, 0);
 });
+</script>
+<script>
+(function(){
+  var T = Swal.mixin({toast:true, position:'top', showConfirmButton:false, showCloseButton:true, timerProgressBar:true,
+    didOpen:function(t){t.addEventListener('mouseenter',Swal.stopTimer);t.addEventListener('mouseleave',Swal.resumeTimer);}});
+  <?php if (!empty($error)): ?>T.fire({icon:'error', title:<?= json_encode($error) ?>, timer:6000});<?php endif; ?>
+})();
 </script>
 </body>
 </html>

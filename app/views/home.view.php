@@ -355,7 +355,7 @@
             showAnnBanner(result.data);  
             grid.innerHTML = result.data.map(a => {
                 const type  = a.type || 'info';
-                const date  = new Date(a.created_at).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
+                const date  = new Date(String(a.created_at).replace(' ', 'T')).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
                 const author = a.author ? a.author : 'CRAC Admin';
                 return `<div class="ann-card ${type} reveal">
                     <div class="ann-card-stripe"></div>

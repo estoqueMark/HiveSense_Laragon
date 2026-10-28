@@ -55,11 +55,18 @@ function sessionUserStillActive(): bool {
 
     require_once MODELS_PATH . '/Base_Model.php';
     $db = new Base_Model();
-    $stmt = $db->connection->prepare('SELECT is_active FROM hs_users WHERE user_id = ? LIMIT 1');
+    $stmt = $db->connection->prepare('SELECT is_active, role FROM hs_users WHERE user_id = ? LIMIT 1');
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
-    return $row && (int)$row['is_active'] === 1;
+    if (!$row || (int)$row['is_active'] !== 1) return false;
+
+    // Keep the role fresh on API calls so demotions take effect immediately.
+    // Page loads are skipped so Dashboard::syncSessionRole() can still show its notice.
+    if (($GLOBALS['seg0'] ?? '') === 'api') {
+        $_SESSION['role'] = $row['role'];
+    }
+    return true;
 }
 
 function denyAccess(): void {
@@ -103,7 +110,15 @@ if ($seg0 === '' || $seg0 === 'home') {
         header('Location: ' . ROOT . '/dashboard');
         exit();
     }
-    (new Base_Controller())->view('home');
+    $announcements = [];
+    try {
+        require_once MODELS_PATH . '/Base_Model.php';
+        require_once MODELS_PATH . '/Announcement_Model.php';
+        $announcements = (new Announcement_Model())->getActive();
+    } catch (\Throwable $e) {
+        $announcements = [];
+    }
+    (new Base_Controller())->view('home', ['announcements' => $announcements]);
 }
 
 // ── LOGIN ─────────────────────────────────────────────────────
