@@ -418,18 +418,32 @@ function renderChartSummary(data) {
 }
 
 function buildScales(hasCo2) {
+    const small = window.innerWidth <= 600;
+    const tickFont = { size: small ? 10 : 12 };
+    const axisTitle = (text, color) => ({
+        display: !small,   // on phones the color-coded ticks replace the titles
+        text, color, font: { size: 11 }, padding: { bottom: 6 }
+    });
+
     const s = {
-        'y-temperature': { type:'linear', position:'left',
-            title:{ display:true, text:'Temperature (°C)', color:'#4A7055', font:{size:11} },
-            ticks:{ color:'#4A7055' }, grid:{ color:'rgba(45,122,58,0.07)' } },
-        'y-humidity': { type:'linear', position:'right',
-            title:{ display:true, text:'Humidity (%)', color:'#4A7055', font:{size:11} },
-            ticks:{ color:'#4A7055' }, grid:{ drawOnChartArea:false } },
-        x: { ticks:{ color:'#4A7055', maxRotation:45, minRotation:45, maxTicksLimit:20 }, grid:{ color:'rgba(45,122,58,0.05)' } }
+        'y-temperature': { type: 'linear', position: 'left',
+            suggestedMin: 30, suggestedMax: 40,
+            title: axisTitle('Temperature (°C)', '#2D7A3A'),
+            ticks: { color: '#2D7A3A', font: tickFont, padding: 4, maxTicksLimit: 6 },
+            grid: { color: 'rgba(45,122,58,0.07)' } },
+        'y-humidity': { type: 'linear', position: 'right',
+            suggestedMin: 40, suggestedMax: 80,
+            title: axisTitle('Humidity (%)', '#2980b9'),
+            ticks: { color: '#2980b9', font: tickFont, padding: 4, maxTicksLimit: 6 },
+            grid: { drawOnChartArea: false } },
+        x: { ticks: { color: '#4A7055', font: tickFont, maxRotation: 45, minRotation: 45,
+                      maxTicksLimit: small ? 6 : 20 },
+             grid: { color: 'rgba(45,122,58,0.05)' } }
     };
-    if (hasCo2) s['y-co2'] = { type:'linear', position:'right',
-        title:{ display:true, text:'CO₂ (ppm)', color:'#b45309', font:{size:11} },
-        ticks:{ color:'#b45309' }, grid:{ drawOnChartArea:false }, offset:true };
+    if (hasCo2) s['y-co2'] = { type: 'linear', position: 'right', offset: true,
+        title: axisTitle('CO₂ (ppm)', '#b45309'),
+        ticks: { color: '#b45309', font: tickFont, padding: 4, maxTicksLimit: 6 },
+        grid: { drawOnChartArea: false } };
     return s;
 }
 

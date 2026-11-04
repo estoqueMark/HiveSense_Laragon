@@ -522,3 +522,58 @@
 .pager { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; }
 .pager span { font-size:0.75rem; color:var(--text-dim); }
 .pager button:disabled { opacity:0.4; cursor:default; }
+
+/* ═══ Responsive layout fixes ═══ */
+
+/* Guide rows: the range keeps its width, the description wraps */
+.th-scale-range, .co2-scale-range, .food-scale-range { flex-shrink: 0; min-width: 0; }
+.th-scale-label, .co2-scale-label, .food-scale-label { min-width: 0; overflow-wrap: anywhere; }
+.th-scale-range   { width: 78px; }
+.co2-scale-range  { width: 125px; }
+.food-scale-range { width: 100px; }
+
+/* Cards: shrink instead of clipping */
+.reading-card, .card-content { min-width: 0; }
+.card-value { white-space: nowrap; }
+
+/* Below 1850px, tighter cards so the numbers fit */
+@media (max-width: 1849px) {
+    .reading-card { padding: 18px; gap: 12px; }
+}
+
+/* 1280–1849px: laptops (1440 x 810, 1440 x 900) */
+@media (min-width: 1280px) and (max-width: 1849px) {
+    .th-grid        { grid-template-columns: repeat(4, 1fr); }
+    .th-scale-card  { grid-column: span 2; }
+    .co2-grid       { grid-template-columns: repeat(3, 1fr); }
+    .co2-scale-card { grid-column: 1 / -1; }
+}
+
+/* 501–1279px: tablets (1112, 904, 768) */
+@media (min-width: 501px) and (max-width: 1279px) {
+    .th-grid       { grid-template-columns: repeat(2, 1fr); }
+    .th-scale-card { grid-column: auto; }
+}
+@media (min-width: 601px) and (max-width: 1279px) {
+    .co2-grid       { grid-template-columns: repeat(2, 1fr); }
+    .co2-scale-card { grid-column: auto; }
+}
+
+/* Food row: stack the weight card and its guide on narrower screens */
+@media (max-width: 1000px) {
+    .food-grid { grid-template-columns: 1fr; }
+}
+
+/* Reserve a row for the status badge so it never covers the label */
+.reading-card.temperature,
+.reading-card.humidity,
+.reading-card.co2-current,
+.reading-card.food-current {
+    padding-top: 48px;
+}
+
+.th-status-badge,
+.co2-status-badge,
+.food-status-badge {
+    white-space: nowrap;
+}

@@ -24,3 +24,17 @@ function closeSidebar() {
         icon.classList.add('fa-bars');
     }
 }
+
+(function () {
+    var main = document.querySelector('.main-content');
+    var btn  = document.getElementById('sidebarToggle');
+    if (!main || !btn) return;
+    var lastY = 0;
+    main.addEventListener('scroll', function () {
+        var y = main.scrollTop;
+        var sidebarOpen = document.querySelector('.sidebar.open');
+        if (y > lastY && y > 80 && !sidebarOpen) btn.classList.add('hide');
+        else btn.classList.remove('hide');
+        lastY = y;
+    }, { passive: true });
+})();

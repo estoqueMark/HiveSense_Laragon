@@ -1269,3 +1269,6 @@
         .hmi-info { min-width: 0; flex: 1; }
         .hmi-info h4, .hmi-info p { overflow-wrap: anywhere; }
         .hmi-actions { flex-shrink: 0; }
+
+.sidebar-toggle { transition: transform 0.25s ease, opacity 0.25s ease; }
+.sidebar-toggle.hide { transform: translateY(-80px); opacity: 0; pointer-events: none; }
