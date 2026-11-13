@@ -110,15 +110,7 @@ if ($seg0 === '' || $seg0 === 'home') {
         header('Location: ' . ROOT . '/dashboard');
         exit();
     }
-    $announcements = [];
-    try {
-        require_once MODELS_PATH . '/Base_Model.php';
-        require_once MODELS_PATH . '/Announcement_Model.php';
-        $announcements = (new Announcement_Model())->getActive();
-    } catch (\Throwable $e) {
-        $announcements = [];
-    }
-    (new Base_Controller())->view('home', ['announcements' => $announcements]);
+    (new Base_Controller())->view('home');
 }
 
 // ── LOGIN ─────────────────────────────────────────────────────
@@ -232,11 +224,21 @@ elseif ($seg0 === 'api' && $seg1 !== '') {
         case 'alert_history':             $dash->getAlertHistory();      break;
         case 'alert_acknowledge':         $dash->acknowledgeAlert();     break;
         case 'food_placed':               $dash->foodPlaced();           break;
+        case 'bridge_sync':
+            require_once CONTROLLERS_PATH . '/ThingSpeak_Bridge.php';
+            (new ThingSpeak_Bridge())->syncFromDashboard();
+            break;
         default:
             header('Content-Type: application/json');
             echo json_encode(['success' => false, 'message' => 'Unknown API endpoint.']);
             exit();
     }
+}
+
+// ── THINGSPEAK BRIDGE (shared-secret auth — no session needed) ─
+elseif ($seg0 === 'thingspeak_bridge') {
+    require_once CONTROLLERS_PATH . '/ThingSpeak_Bridge.php';
+    (new ThingSpeak_Bridge())->index();
 }
 
 // ── INGEST (API key auth — no session needed) ─────────────────

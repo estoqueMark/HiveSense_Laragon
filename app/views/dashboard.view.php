@@ -220,11 +220,10 @@
                 </div>
                 <div class="co2-scale-card">
                     <div class="co2-scale-title"><i class="fas fa-info-circle"></i> CO₂ Reading Guide</div>
-                    <div class="co2-scale-row"><span class="co2-dot low"></span><span class="co2-scale-range">~450–1,000 ppm</span><span class="co2-scale-label">Daytime low — foragers out</span></div>
-                    <div class="co2-scale-row"><span class="co2-dot typical"></span><span class="co2-scale-range">~1,000–5,000 ppm</span><span class="co2-scale-label">Typical for an active colony</span></div>
-                    <div class="co2-scale-row"><span class="co2-dot peak"></span><span class="co2-scale-range">5,000+ ppm</span><span class="co2-scale-label">Night peaks — normal</span></div>
-                    <div class="co2-scale-row"><span class="co2-dot flat"></span><span class="co2-scale-range">No daily swing</span><span class="co2-scale-label">Flat near open air — inspect</span></div>
-                    <div class="co2-scale-note">Estimated by an MQ-135 sensor. Watch the daily pattern, not the exact number.</div>
+                    <div class="co2-scale-row"><span class="co2-dot low"></span><span class="co2-scale-range">600–1,000 ppm</span><span class="co2-scale-label">Low Varroa infestation</span></div>
+                    <div class="co2-scale-row"><span class="co2-dot typical"></span><span class="co2-scale-range">1,000–2,000 ppm</span><span class="co2-scale-label">Average Varroa infestation — Warning alert</span></div>
+                    <div class="co2-scale-row"><span class="co2-dot peak"></span><span class="co2-scale-range">Above 2,000 ppm</span><span class="co2-scale-label">High Varroa infestation — Critical alert</span></div>
+                    <div class="co2-scale-note">Estimated by an MQ-135 sensor. Ranges linked to Varroa infestation (Camayo et al., 2024).</div>
                 </div>
             </div>
         </div>

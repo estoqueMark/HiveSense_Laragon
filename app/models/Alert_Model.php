@@ -8,8 +8,12 @@ class Alert_Model extends Base_Model {
     const TEMP_HOT        = 38;
     const HUM_DRY         = 50;
     const HUM_VERY_HUMID  = 85;
-    // CO2 is shown on the dashboard as an informational trend only. Healthy colonies cycle
-    // between ~500 ppm (day) and 5,000+ ppm (night), so no fixed limit is used for alerts.
+    // Estimated CO2 (MQ-135) ranges linked to Varroa infestation (Camayo et al., 2024):
+    //   600-1000 ppm = low infestation, 1000-2000 ppm = average (warning alert),
+    //   above 2000 ppm = high (critical alert)
+    const CO2_LOW_PPM      = 600;
+    const CO2_WARNING_PPM  = 1000;
+    const CO2_CRITICAL_PPM = 2000;
 
     // Food is judged against the weight the beekeeper recorded as "full" (button on the dashboard)
     const FOOD_FULL_PCT   = 75;   // >= 75% of the recorded full weight = Full
@@ -53,10 +57,16 @@ class Alert_Model extends Base_Model {
             }
         }
 
-        // CO2 is informational only (no alerts) - but still counted as "reported" so any old
-        // CO2 alert left in the database is resolved automatically.
         if ($co2 !== null) {
             $reported[] = 'co2';
+            $ppm = round($co2);
+            if ($co2 > self::CO2_CRITICAL_PPM) {
+                $triggered[] = ['type' => 'co2', 'severity' => 'critical', 'value' => $co2,
+                    'message' => "Estimated CO₂ reached {$ppm} ppm — range linked to a high Varroa infestation. Inspect the hive for Varroa mites now."];
+            } elseif ($co2 >= self::CO2_WARNING_PPM) {
+                $triggered[] = ['type' => 'co2', 'severity' => 'warning', 'value' => $co2,
+                    'message' => "Estimated CO₂ reached {$ppm} ppm — range linked to an average Varroa infestation. Inspect the hive for Varroa mites."];
+            }
         }
 
         if ($foodLevel !== null) {

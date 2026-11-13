@@ -40,7 +40,7 @@ define('FOOD_MAX_G', 20000);
 date_default_timezone_set('Asia/Manila');
 
 // A hive counts as offline if it has sent nothing for this many minutes
-if (!defined('SENSOR_OFFLINE_MIN')) define('SENSOR_OFFLINE_MIN', 10);
+if (!defined('SENSOR_OFFLINE_MIN')) define('SENSOR_OFFLINE_MIN', 3);
 
 // Don't show PHP errors to visitors on the live site
 error_reporting(E_ALL);

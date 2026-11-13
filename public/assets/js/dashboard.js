@@ -1962,3 +1962,18 @@ async function prefillFromLastNote(ds) {
         toggleFeedType();
     } catch (e) {}
 }
+
+const IDLE_LIMIT_MS = 30 * 60 * 1000;
+let idleTimer = null;
+
+function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () {
+        window.location.href = BASE_URL + '/logout';
+    }, IDLE_LIMIT_MS);
+}
+
+['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(function (evt) {
+    window.addEventListener(evt, resetIdleTimer, { passive: true });
+});
+resetIdleTimer();

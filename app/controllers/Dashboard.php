@@ -67,6 +67,13 @@ class Dashboard extends Hive_Controller {
             
             $responseData = array_merge($latest, $minMax ?? []);
 
+            // Estimated CO2 ranges (Camayo et al., 2024) used for the badge and the alerts
+            $responseData['co2_bands'] = [
+                'low'      => Alert_Model::CO2_LOW_PPM,
+                'warning'  => Alert_Model::CO2_WARNING_PPM,
+                'critical' => Alert_Model::CO2_CRITICAL_PPM,
+            ];
+
             // Food status is judged against the weight recorded as "full" (Food placed button)
             $responseData['food_bands'] = [
                 'full_min'  => Alert_Model::FOOD_FULL_PCT,
@@ -427,7 +434,14 @@ class Dashboard extends Hive_Controller {
             return $RED;
         };
         // CO2 is an uncalibrated MQ-135 estimate, so it is left uncoloured
-        $co2Color = function ($v) { return null; };
+        // CO2 (estimated): same limits as the alerts (warning 1,000-2,000 ppm, critical above 2,000 ppm)
+        $co2Color = function ($v) use ($RED, $ORANGE) {
+            if ($v === null || $v === '') return null;
+            $v = (float)$v;
+            if ($v > Alert_Model::CO2_CRITICAL_PPM) return $RED;
+            if ($v >= Alert_Model::CO2_WARNING_PPM) return $ORANGE;
+            return null;
+        };
 
         // Food is coloured against the "full" weight recorded for this hive (Food placed button).
         // No recorded full weight = no colour (there is nothing to compare against).
@@ -572,8 +586,8 @@ class Dashboard extends Hive_Controller {
             [$BLUE,   'Cold (temp below 32 °C)'],
             [$GREEN,  'Optimal / Good / Full supplementary food'],
             [$YELLOW, 'Warm / Humid / Half-full supplementary food'],
-            [$ORANGE, 'Dry / Low supplementary food'],
-            [$RED,    'Hot / Very humid / Empty supplementary food'],
+            [$ORANGE, 'Dry / Warning CO2 (1,000-2,000 ppm) / Low supplementary food'],
+            [$RED,    'Hot / Very humid / Critical CO2 (above 2,000 ppm) / Empty supplementary food'],
         ];
         foreach ($legend as $i => [$rgb, $text]) {
             $cell = 'A' . ($l + 1 + $i);
