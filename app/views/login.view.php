@@ -104,6 +104,18 @@ function togglePw(inputId, iconId) {
   <?php if (!empty($error)): ?>T.fire({icon:'error', title:<?= json_encode($error) ?>, timer:5000});<?php endif; ?>
   <?php if (!empty($success)): ?>T.fire({icon:'success', title:<?= json_encode($success) ?>, timer:5000});<?php endif; ?>
 })();
+
+document.querySelector('form').addEventListener('submit', function () {
+    var b = this.querySelector('.btn-submit');
+    setTimeout(function () {
+        b.disabled = true;
+        b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+    }, 0);
+});
+window.addEventListener('pageshow', function (e) {
+    if (e.persisted) location.reload();   // back button: don't leave it stuck on "Signing in"
+});
+
 </script>
 </body>
 </html>

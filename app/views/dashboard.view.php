@@ -2,6 +2,9 @@
 <!-- Dashboard View CSS -->
 <link rel="stylesheet" href="<?= ROOT ?>/public/assets/css/dashboard.css">
 
+<div id="netBar"></div>
+<div id="netNotice"><i class="fas fa-wifi"></i><span class="net-msg"></span></div>
+
 <div class="app-container">
     <!-- Sidebar -->
     <aside class="sidebar">

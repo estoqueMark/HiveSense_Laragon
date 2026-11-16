@@ -26,15 +26,59 @@ let currentSensorId = null;
 // fetch here means every existing API call in this file — apiUrl(),
 // direct BASE_URL calls, all of it — gets this check for free, without
 // having to touch each call site individually.
+// ── Loading / weak-connection indicator ──────────────────────────
+let pendingReqs = 0, slowTimer = null;
+
+function setNetNotice(msg, kind) {
+    const n = $('#netNotice');
+    if (!msg) { n.removeClass('show slow bad'); return; }
+    n.removeClass('slow bad').addClass('show ' + kind).find('.net-msg').text(msg);
+}
+function reqStart() {
+    pendingReqs++;
+    $('#netBar').addClass('on');
+    if (!slowTimer) slowTimer = setTimeout(function () {
+        setNetNotice('Weak connection. Still loading\u2026', 'slow');
+    }, 4000);
+}
+function reqEnd(ok) {
+    pendingReqs = Math.max(0, pendingReqs - 1);
+    if (pendingReqs > 0) return;
+    $('#netBar').removeClass('on');
+    clearTimeout(slowTimer); slowTimer = null;
+    if (ok) setNetNotice(null);
+}
+window.addEventListener('offline', function () { setNetNotice('You are offline.', 'bad'); });
+window.addEventListener('online',  function () { setNetNotice('Back online. Refreshing\u2026', 'slow'); refreshData(); });
+
+// ── Session guard + loading indicator ────────────────────────────
 let sessionExpiredHandled = false;
 const _nativeFetch = window.fetch;
-window.fetch = function(...args) {
-    return _nativeFetch.apply(this, args).then(function(response) {
+window.fetch = function (url, options = {}) {
+    const quiet = String(url).indexOf('bridge_sync') !== -1;   // background sync stays invisible
+    let timeout;
+    if (!quiet) {
+        reqStart();
+        if (!options.signal) {
+            const ctrl = new AbortController();
+            timeout = setTimeout(function () { ctrl.abort(); }, 30000);   // never hang forever
+            options = Object.assign({}, options, { signal: ctrl.signal });
+        }
+    }
+    return _nativeFetch.call(this, url, options).then(function (response) {
         if (response.status === 401 && !sessionExpiredHandled) {
             sessionExpiredHandled = true;
             handleSessionExpired();
         }
+        if (!quiet) { clearTimeout(timeout); reqEnd(true); }
         return response;
+    }, function (err) {
+        if (!quiet) {
+            clearTimeout(timeout);
+            reqEnd(false);
+            setNetNotice('Connection problem. Retrying automatically\u2026', 'bad');
+        }
+        throw err;
     });
 };
 
@@ -174,10 +218,12 @@ function apiUrl(path, extraParams) {
 
 // Load current readings
 async function loadCurrentData() {
+    const sid = currentSensorId;
     try {
         // FIX: Pass sensor_id so the correct hive's readings are shown
         const response = await fetch(apiUrl('/api/current'));
         const result = await response.json();
+        if (sid !== currentSensorId) return;        
         
         if (result.success && result.data) {
             const d = result.data;
@@ -289,9 +335,11 @@ function setSummaryDays(days, btn) {
 
 // Live mode — fetch every individual reading
 async function loadHistoryData(hours) {
+    const sid = currentSensorId;    
     try {
         const response = await fetch(apiUrl('/api/readings', { hours: hours || 1, bucket: hours >= 168 ? 1800 : (hours >= 24 ? 300 : 0) }));
         const result   = await response.json();
+        if (sid !== currentSensorId) return;    
         if (result.success && result.data && result.data.length > 0) {
             $('#chartEmpty').hide();
             renderChartLive(result.data);
@@ -305,9 +353,11 @@ async function loadHistoryData(hours) {
 
 // Summary mode — fetch daily averages
 async function loadSummaryChart(days) {
+    const sid = currentSensorId;
     try {
         const response = await fetch(apiUrl('/api/history', { days }));
         const result   = await response.json();
+        if (sid !== currentSensorId) return;
         if (result.success && result.data && result.data.length > 0) {
             $('#chartEmpty').hide();
             renderChartSummary(result.data);
@@ -466,6 +516,7 @@ let readingsPageNum = 1;
 const READINGS_PER_PAGE = 20;
 
 async function loadReadingsTable(keepPage = false) {
+    const sid = currentSensorId;
     const hours = parseInt($('#readingsHourFilter').val()) || 24;
     const tbody = $('#readingsTableBody');
     if (!keepPage) tbody.html('<tr><td colspan="8" class="loading">Loading...</td></tr>');
@@ -474,6 +525,7 @@ async function loadReadingsTable(keepPage = false) {
         const qp = df ? { date_from: df, date_to: dt || df } : { hours };
         const response = await fetch(apiUrl('/api/readings', qp));
         const result   = await response.json();
+        if (sid !== currentSensorId) return;
         if (!result.success || !result.data || !result.data.length) {
             readingsRows = [];
             tbody.html('<tr><td colspan="8" class="loading">No readings found for this period.</td></tr>');
@@ -541,9 +593,11 @@ function renderReadingsPage(hours) {
 
 // Daily summary table
 async function loadDailyStats() {
+    const sid = currentSensorId;
     try {
         const response = await fetch(apiUrl('/api/daily_stats', { limit: 30 }));
         const result   = await response.json();
+        if (sid !== currentSensorId) return;
         if (result.success && result.data && result.data.length > 0) {
             renderTable(result.data);
             $('#summaryCount').text(`${result.data.length} day${result.data.length !== 1 ? 's' : ''}`);
@@ -750,7 +804,8 @@ async function selectCalDay(ds) {
         setFormReadOnly(isFuture);
     } catch(e) {
         clearInspectionForm();
-        setFormReadOnly(isFuture);
+        setFormReadOnly(true);   // locked so a blank form can't be saved by mistake
+        showToast('Could not load this day. Click the date again.', 'error');
     }
 }
 
@@ -889,7 +944,7 @@ function sanitizeSignedIntColony(el) {
 function sanitizeUnsignedInt(el) {
     el.value = el.value.replace(/[^0-9]/g, '');
 }
-
+let savingNote = false;
 async function saveCurrentNote() {
     const date = calSelectedDate;
     if (!date) { showToast('No date selected.', 'error'); return; }
@@ -928,6 +983,8 @@ async function saveCurrentNote() {
     }
     
     try {
+        if (savingNote) return;
+        savingNote = true;
         const response = await fetch(BASE_URL + '/api/note_save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -947,6 +1004,8 @@ async function saveCurrentNote() {
         showToast('Inspection saved!', 'success');
     } catch(e) {
         showToast(`Error: ${e.message}`, 'error');
+    } finally {
+        savingNote = false;
     }
 }
 
@@ -1857,6 +1916,7 @@ async function loadCompareDateOptions() {
         $('#compareEmpty').text(dates.length ? 'Select two inspection dates above to compare.' : 'No inspection notes exist yet for this hive.');
     } catch(e) {
         $('#compareDateA, #compareDateB').html('<option value="">Error loading dates</option>');
+        $('#compareEmpty').text('Could not load inspection dates. Check your connection and reopen Compare.');
     }
 }
 
@@ -1867,6 +1927,7 @@ async function loadCompareSide(side) {
         renderCompareTable();
         return;
     }
+    const sel = $(`#compareDate${side}`).prop('disabled', true);
     try {
         const res = await fetch(`${BASE_URL}/api/note_by_id?note_id=${noteId}`);
         const result = await res.json();
@@ -1874,6 +1935,9 @@ async function loadCompareSide(side) {
         if (side === 'A') compareNoteA = note; else compareNoteB = note;
     } catch(e) {
         if (side === 'A') compareNoteA = null; else compareNoteB = null;
+        showToast('Could not load that inspection. Please try again.', 'error');
+    } finally {
+        sel.prop('disabled', false);
     }
     renderCompareTable();
 }
